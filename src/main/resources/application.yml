@@ -25,9 +25,8 @@ management:
 
 app:
   jwt:
-    # generate your own long secret for production
-    secret: "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_CHANGE_ME_TO_A_LONG_RANDOM_SECRET"
-    expiresMinutes: 120
+    secret: ${APP_JWT_SECRET}
+    expiresMinutes: ${APP_JWT_EXPIRESMINUTES:120}
 
 springdoc:
   api-docs:
