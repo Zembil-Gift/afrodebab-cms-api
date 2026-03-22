@@ -16,6 +16,7 @@ public record EventCreateRequest(
         @NotNull(message="startDate is required") Instant startDate,
         Instant endDate,
         String registrationUrl,
+        String coverImageUrl,
         Event.Status status
 ) {}
 

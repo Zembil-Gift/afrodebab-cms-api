@@ -13,6 +13,7 @@ public record EventResponse(
         Event.EventType eventType,
         String location,
         Instant startDate,
+        String coverImageUrl,
         Instant endDate,
         String registrationUrl,
         Event.Status status

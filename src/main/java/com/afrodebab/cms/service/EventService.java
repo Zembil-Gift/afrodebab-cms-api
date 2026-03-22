@@ -42,6 +42,7 @@ public class EventService {
         e.setLocation(req.location());
         e.setStartDate(req.startDate());
         e.setEndDate(req.endDate());
+        e.setCoverImageUrl(req.coverImageUrl());
         e.setRegistrationUrl(req.registrationUrl());
         e.setStatus(req.status() == null ? Event.Status.DRAFT : req.status());
 
@@ -82,7 +83,7 @@ public class EventService {
     private EventResponse toResponse(Event e) {
         return new EventResponse(
                 e.getId(), e.getTitle(), e.getSlug(), e.getDescription(),
-                e.getEventType(), e.getLocation(), e.getStartDate(), e.getEndDate(),
+                e.getEventType(), e.getLocation(), e.getStartDate(),e.getCoverImageUrl(), e.getEndDate(),
                 e.getRegistrationUrl(), e.getStatus()
         );
     }

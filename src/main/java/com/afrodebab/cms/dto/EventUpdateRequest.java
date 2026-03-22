@@ -13,6 +13,7 @@ public record EventUpdateRequest(
         String location,
         Instant startDate,
         Instant endDate,
+        String coverImageUrl,
         String registrationUrl,
         Event.Status status
 ) {}

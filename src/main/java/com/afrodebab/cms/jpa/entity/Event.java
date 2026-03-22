@@ -42,6 +42,9 @@ public class Event {
     @Column(name="registration_url")
     private String registrationUrl;
 
+    @Column(name="cover_image_url")
+    private String coverImageUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.DRAFT;
