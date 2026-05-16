@@ -59,8 +59,13 @@ Public endpoints → No authentication required
 
 Admin endpoints (/admin/**) → JWT Bearer token required
 
+Employee self-service endpoints (/employee/me/**) → Employee JWT Bearer token required
+
 Admin Login
 POST /admin/auth/login
+
+Employee Login
+POST /employee/auth/login
 
 
 Request
@@ -106,6 +111,18 @@ PUT    /admin/jobs/{id}
 GET    /admin/job-applications
 GET    /admin/job-applications/{jobId}
 
+POST   /admin/employees
+GET    /admin/employees
+GET    /admin/employees/{id}
+PUT    /admin/employees/{id}
+DELETE /admin/employees/{id}   # soft delete (is_active=false)
+POST   /admin/employees/{id}/photo   # multipart/form-data, file field: "file"
+PUT    /admin/employees/{id}/attendance   # upsert attendance for a date (clock-in/out)
+GET    /admin/employees/{id}/attendance   # attendance history (latest date first)
+
+POST   /employee/auth/login
+POST   /employee/me/password
+
 📚 API Documentation (Swagger)
 
 Swagger UI is enabled for easy frontend integration:
@@ -143,6 +160,20 @@ app:
   jwt:
     secret: CHANGE_ME_TO_A_LONG_RANDOM_SECRET
     expiresMinutes: 120
+  cloudflare:
+    r2:
+      s3Api: https://<accountid>.r2.cloudflarestorage.com/<bucket-name>
+      publicDevelopmentUrl: https://<public-r2-dev-domain>
+      tokenValue: <TOKEN_VALUE>
+      accessKeyId: <ACCESS_KEY_ID>
+      secretAccessKey: <SECRET_ACCESS_KEY>
+      region: auto
+  sendgrid:
+    apiKey: <SENDGRID_API_KEY>
+    fromEmail: no-reply@example.com
+    fromName: AfroDebab CMS
+
+.env is auto-loaded (via `spring-dotenv`), so these keys can be set directly in a root `.env` file.
 
 ▶️ Run the Application
 mvn clean install
@@ -152,4 +183,3 @@ mvn spring-boot:run
 Application runs at:
 
 http://localhost:8080
-
