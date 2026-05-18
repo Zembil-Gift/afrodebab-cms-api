@@ -42,8 +42,7 @@ public class AuthController {
             adminRepo.save(a);
         });
 
-        String token = jwtService.generateToken(req.email());
+        String token = jwtService.generateToken(req.email(), "ADMIN");
         return new LoginResponse(token);
     }
 }
-
