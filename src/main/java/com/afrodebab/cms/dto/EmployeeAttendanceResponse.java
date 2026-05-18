@@ -9,6 +9,8 @@ public record EmployeeAttendanceResponse(
         LocalDate date,
         Instant clockInAt,
         Instant clockOutAt,
+        Instant lunchBreakInAt,
+        Instant lunchBreakOutAt,
         Instant createdAt,
         Instant updatedAt
 ) {}

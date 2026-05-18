@@ -14,7 +14,7 @@ Built with clean architecture and backend best practices.
 
 📄 Pagination & sorting
 
-🧾 Job application submission & review
+🧾 Job application, hiring workflow, and review
 
 📚 Swagger / OpenAPI documentation
 
@@ -97,6 +97,9 @@ GET /blogs?page=0&size=10
 Apply for a Job
 POST /jobs/{jobId}/apply
 
+Apply for a Job with Resume Upload
+POST /jobs/{jobId}/apply/form
+
 🧑‍💼 Admin API Examples
 POST   /admin/blogs
 PUT    /admin/blogs/{id}
@@ -110,6 +113,9 @@ PUT    /admin/jobs/{id}
 
 GET    /admin/job-applications
 GET    /admin/job-applications/{jobId}
+PATCH  /admin/job-applications/{id}/status
+POST   /admin/job-applications/{jobId}/select-interview
+POST   /admin/job-applications/{jobId}/hire
 
 POST   /admin/employees
 GET    /admin/employees
@@ -119,6 +125,8 @@ DELETE /admin/employees/{id}   # soft delete (is_active=false)
 POST   /admin/employees/{id}/photo   # multipart/form-data, file field: "file"
 PUT    /admin/employees/{id}/attendance   # upsert attendance for a date (clock-in/out)
 GET    /admin/employees/{id}/attendance   # attendance history (latest date first)
+GET    /admin/email-notifications/failed
+POST   /admin/email-notifications/{id}/retry
 
 POST   /employee/auth/login
 POST   /employee/me/password
@@ -137,6 +145,18 @@ Try APIs directly
 JWT support via Authorize button
 
 Request/response schemas
+
+Hiring workflow:
+- Application statuses: APPLIED, UNDER_REVIEW, SELECTED_FOR_INTERVIEW, REJECTED, HIRED
+- Selecting interview candidates auto-rejects non-selected applicants for the same job
+- Hiring one candidate auto-rejects the remaining interviewed candidates for the same job
+- Hiring creates an employee profile
+
+Email delivery workflow:
+- All transactional emails are queued in `email_notifications`
+- Daily dispatcher runs at 00:00 UTC
+- Dispatcher processes PENDING and FAILED notifications with attempts < 3
+- Failed deliveries are visible in admin and support manual retry endpoint
 
 🗄️ Database Setup
 Create Database

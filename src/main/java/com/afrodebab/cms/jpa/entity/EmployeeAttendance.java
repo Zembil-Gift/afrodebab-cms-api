@@ -38,6 +38,12 @@ public class EmployeeAttendance {
     @Column(name = "clock_out_at")
     private Instant clockOutAt;
 
+    @Column(name = "lunch_break_in_at")
+    private Instant lunchBreakInAt;
+
+    @Column(name = "lunch_break_out_at")
+    private Instant lunchBreakOutAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

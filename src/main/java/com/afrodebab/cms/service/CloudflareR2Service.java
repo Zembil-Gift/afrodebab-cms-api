@@ -38,13 +38,22 @@ public class CloudflareR2Service {
 
     public String uploadEmployeePhoto(Long employeeId, MultipartFile file) {
         if (file == null || file.isEmpty()) throw new BadRequestException("Photo file is required");
+        return uploadFile("employees/" + employeeId, file, "photo", "Failed to upload employee photo");
+    }
+
+    public String uploadJobApplicationResume(Long applicationId, MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new BadRequestException("Resume file is required");
+        return uploadFile("job-applications/" + applicationId, file, "resume", "Failed to upload application resume");
+    }
+
+    private String uploadFile(String folder, MultipartFile file, String fallbackName, String uploadError) {
         if (s3Api == null || s3Api.isBlank()) throw new IllegalStateException("S3_API is not configured");
         if (accessKeyId == null || accessKeyId.isBlank()) throw new IllegalStateException("ACCESS_KEY_ID is not configured");
         if (secretAccessKey == null || secretAccessKey.isBlank()) throw new IllegalStateException("SECRET_ACCESS_KEY is not configured");
 
-        String originalName = file.getOriginalFilename() == null ? "photo" : file.getOriginalFilename();
+        String originalName = file.getOriginalFilename() == null ? fallbackName : file.getOriginalFilename();
         String safeName = originalName.replaceAll("[^a-zA-Z0-9._-]", "_");
-        String key = "employees/" + employeeId + "/" + UUID.randomUUID() + "-" + safeName;
+        String key = folder + "/" + UUID.randomUUID() + "-" + safeName;
         ParsedS3Api parsed = parseS3Api();
         String endpoint = parsed.endpoint();
         String bucket = parsed.bucket();
@@ -62,12 +71,12 @@ public class CloudflareR2Service {
             PutObjectRequest request = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(key)
-                    .contentType(file.getContentType())
+                    .contentType(file.getContentType() == null ? "application/octet-stream" : file.getContentType())
                     .build();
 
             s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));
         } catch (IOException ex) {
-            throw new RuntimeException("Failed to upload employee photo", ex);
+            throw new RuntimeException(uploadError, ex);
         }
 
         if (publicDevelopmentUrl != null && !publicDevelopmentUrl.isBlank()) {

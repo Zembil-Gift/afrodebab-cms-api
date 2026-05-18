@@ -14,9 +14,16 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.SecureRandom;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class EmployeeService {
@@ -27,7 +34,7 @@ public class EmployeeService {
     private final AdminRepository adminRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final SendGridEmailService sendGridEmailService;
+    private final EmailNotificationService emailNotificationService;
     private final CloudflareR2Service cloudflareR2Service;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -35,13 +42,13 @@ public class EmployeeService {
                            AdminRepository adminRepo,
                            PasswordEncoder passwordEncoder,
                            JwtService jwtService,
-                           SendGridEmailService sendGridEmailService,
+                           EmailNotificationService emailNotificationService,
                            CloudflareR2Service cloudflareR2Service) {
         this.employeeRepo = employeeRepo;
         this.adminRepo = adminRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-        this.sendGridEmailService = sendGridEmailService;
+        this.emailNotificationService = emailNotificationService;
         this.cloudflareR2Service = cloudflareR2Service;
     }
 
@@ -58,17 +65,22 @@ public class EmployeeService {
         employee.setPosition(req.position());
         employee.setLinkedinUrl(req.linkedinUrl());
         employee.setPhoto(req.photo());
+        employee.setSalaryEffectiveDate(req.salaryDate());
+        employee.setSalaryAmountMinor(req.salaryAmountMinor());
+        employee.setSalaryScheduleDays(normalizeScheduleDays(req.salaryScheduleDays()));
         employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
         employee.setActive(true);
 
         employeeRepo.save(employee);
-        sendGridEmailService.sendEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
         return toResponse(employee);
     }
 
     @Transactional
     public EmployeeResponse createFromForm(String name, String email, String phone, String position,
-                                           String linkedinUrl, String photoUrl, MultipartFile photo) {
+                                           String linkedinUrl, String photoUrl, LocalDate salaryDate,
+                                           Long salaryAmountMinor, Set<DayOfWeek> salaryScheduleDays,
+                                           MultipartFile photo) {
         String normalizedEmail = normalizeEmail(email);
         validateGlobalEmailUniqueness(normalizedEmail, null);
 
@@ -80,6 +92,9 @@ public class EmployeeService {
         employee.setPosition(position);
         employee.setLinkedinUrl(linkedinUrl);
         employee.setPhoto(photoUrl);
+        employee.setSalaryEffectiveDate(salaryDate);
+        employee.setSalaryAmountMinor(salaryAmountMinor);
+        employee.setSalaryScheduleDays(normalizeScheduleDays(salaryScheduleDays));
         employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
         employee.setActive(true);
 
@@ -91,8 +106,45 @@ public class EmployeeService {
             employeeRepo.save(employee);
         }
 
-        sendGridEmailService.sendEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
         return toResponse(employee);
+    }
+
+    @Transactional
+    public EmployeeResponse createFromHiredApplication(String name,
+                                                       String email,
+                                                       String phone,
+                                                       String position,
+                                                       LocalDate salaryDate,
+                                                       Long salaryAmountMinor) {
+        return toResponse(createEntityFromHiredApplication(name, email, phone, position, salaryDate, salaryAmountMinor));
+    }
+
+    @Transactional
+    public Employee createEntityFromHiredApplication(String name,
+                                                     String email,
+                                                     String phone,
+                                                     String position,
+                                                     LocalDate salaryDate,
+                                                     Long salaryAmountMinor) {
+        String normalizedEmail = normalizeEmail(email);
+        validateGlobalEmailUniqueness(normalizedEmail, null);
+
+        String generatedPassword = generatePassword();
+        Employee employee = new Employee();
+        employee.setName(name);
+        employee.setEmail(normalizedEmail);
+        employee.setPhone(phone);
+        employee.setPosition(position);
+        employee.setSalaryEffectiveDate(salaryDate);
+        employee.setSalaryAmountMinor(salaryAmountMinor);
+        employee.setSalaryScheduleDays(EnumSet.noneOf(DayOfWeek.class));
+        employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
+        employee.setActive(true);
+
+        employeeRepo.save(employee);
+        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        return employee;
     }
 
     @Transactional(readOnly = true)
@@ -121,6 +173,9 @@ public class EmployeeService {
         if (req.linkedinUrl() != null) employee.setLinkedinUrl(req.linkedinUrl());
         if (req.photo() != null) employee.setPhoto(req.photo());
         if (req.active() != null) employee.setActive(req.active());
+        if (req.salaryDate() != null) employee.setSalaryEffectiveDate(req.salaryDate());
+        if (req.salaryAmountMinor() != null) employee.setSalaryAmountMinor(req.salaryAmountMinor());
+        if (req.salaryScheduleDays() != null) employee.setSalaryScheduleDays(normalizeScheduleDays(req.salaryScheduleDays()));
 
         employeeRepo.save(employee);
         return toResponse(employee);
@@ -204,6 +259,8 @@ public class EmployeeService {
     }
 
     private EmployeeResponse toResponse(Employee employee) {
+        List<DayOfWeek> salaryScheduleDays = new ArrayList<>(employee.getSalaryScheduleDays());
+        salaryScheduleDays.sort(DayOfWeek::compareTo);
         return new EmployeeResponse(
                 employee.getId(),
                 employee.getName(),
@@ -213,9 +270,19 @@ public class EmployeeService {
                 employee.getLinkedinUrl(),
                 employee.getPhoto(),
                 employee.isActive(),
+                employee.getSalaryEffectiveDate(),
+                employee.getSalaryAmountMinor(),
+                salaryScheduleDays,
                 employee.getCreatedAt(),
                 employee.getUpdatedAt()
         );
+    }
+
+    private Set<DayOfWeek> normalizeScheduleDays(Set<DayOfWeek> salaryScheduleDays) {
+        if (salaryScheduleDays == null || salaryScheduleDays.isEmpty()) {
+            return EnumSet.noneOf(DayOfWeek.class);
+        }
+        return EnumSet.copyOf(new HashSet<>(salaryScheduleDays));
     }
 
     private String generatePassword() {

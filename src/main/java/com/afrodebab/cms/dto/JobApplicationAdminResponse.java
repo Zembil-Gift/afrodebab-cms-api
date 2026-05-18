@@ -1,5 +1,7 @@
 package com.afrodebab.cms.dto;
 
+import com.afrodebab.cms.jpa.entity.JobApplication;
+
 import java.time.Instant;
 
 public record JobApplicationAdminResponse(
@@ -9,6 +11,9 @@ public record JobApplicationAdminResponse(
         String email,
         String phoneNumber,
         String githubUrl,
-        Instant createdAt
+        String resumeUrl,
+        JobApplication.ApplicationStatus status,
+        Long hiredEmployeeId,
+        Instant createdAt,
+        Instant updatedAt
 ) {}
-

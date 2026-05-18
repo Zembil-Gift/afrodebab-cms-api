@@ -15,7 +15,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 @Tag(name = "Admin - Employees")
 @RestController
@@ -42,11 +45,25 @@ public class EmployeeAdminController {
             @RequestParam String position,
             @RequestParam(required = false) String linkedinUrl,
             @RequestParam(required = false) String photoUrl,
+            @RequestParam(required = false) LocalDate salaryDate,
+            @RequestParam(required = false) Long salaryAmountMinor,
+            @RequestParam(required = false) Set<DayOfWeek> salaryScheduleDays,
             @RequestParam(name = "photo", required = false) MultipartFile photo,
             @RequestParam(name = "file", required = false) MultipartFile file
     ) {
         MultipartFile upload = (photo != null && !photo.isEmpty()) ? photo : file;
-        return service.createFromForm(name, email, phone, position, linkedinUrl, photoUrl, upload);
+        return service.createFromForm(
+                name,
+                email,
+                phone,
+                position,
+                linkedinUrl,
+                photoUrl,
+                salaryDate,
+                salaryAmountMinor,
+                salaryScheduleDays,
+                upload
+        );
     }
 
     @GetMapping

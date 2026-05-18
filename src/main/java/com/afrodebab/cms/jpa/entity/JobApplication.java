@@ -16,6 +16,14 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class JobApplication {
+    public enum ApplicationStatus {
+        APPLIED,
+        UNDER_REVIEW,
+        SELECTED_FOR_INTERVIEW,
+        REJECTED,
+        HIRED
+    }
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -35,10 +43,32 @@ public class JobApplication {
     @Column(name="github_url")
     private String githubUrl;
 
-    @Column(name="created_at", nullable=false, updatable=false)
+    @Column(name = "resume_url")
+    private String resumeUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = true)
+    private ApplicationStatus status = ApplicationStatus.APPLIED;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "hired_employee_id")
+    private Employee hiredEmployee;
+
+    @Column(name="created_at", nullable=true, updatable=false)
     private Instant createdAt;
 
-    @PrePersist void prePersist() { createdAt = Instant.now(); }
+    @Column(name="updated_at", nullable=true)
+    private Instant updatedAt;
+
+    @PrePersist
+    void prePersist() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = Instant.now();
+    }
 
 }
-
