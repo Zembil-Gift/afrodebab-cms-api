@@ -1,4 +1,4 @@
-CREATE TABLE admins (
+CREATE TABLE IF NOT EXISTS admins (
                         id BIGSERIAL PRIMARY KEY,
                         name VARCHAR(150) NOT NULL,
                         email VARCHAR(200) NOT NULL UNIQUE,
@@ -9,7 +9,7 @@ CREATE TABLE admins (
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE blogs (
+CREATE TABLE IF NOT EXISTS blogs (
                        id BIGSERIAL PRIMARY KEY,
                        title VARCHAR(250) NOT NULL,
                        slug VARCHAR(300) NOT NULL UNIQUE,
@@ -22,7 +22,7 @@ CREATE TABLE blogs (
                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE events (
+CREATE TABLE IF NOT EXISTS events (
                         id BIGSERIAL PRIMARY KEY,
                         title VARCHAR(250) NOT NULL,
                         slug VARCHAR(300) NOT NULL UNIQUE,
@@ -37,7 +37,7 @@ CREATE TABLE events (
                         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE jobs (
+CREATE TABLE IF NOT EXISTS jobs (
                       id BIGSERIAL PRIMARY KEY,
                       title VARCHAR(250) NOT NULL,
                       slug VARCHAR(300) NOT NULL UNIQUE,
@@ -50,7 +50,7 @@ CREATE TABLE jobs (
                       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE job_applications (
+CREATE TABLE IF NOT EXISTS job_applications (
                                   id BIGSERIAL PRIMARY KEY,
                                   job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
                                   full_name VARCHAR(200) NOT NULL,
@@ -60,4 +60,4 @@ CREATE TABLE job_applications (
                                   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_job_applications_job_id ON job_applications(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_applications_job_id ON job_applications(job_id);

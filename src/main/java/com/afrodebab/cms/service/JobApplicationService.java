@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -70,10 +71,7 @@ public class JobApplicationService {
 
     @Transactional
     public List<JobApplicationAdminResponse> selectInterviewCandidates(Long jobId, List<Long> applicationIds) {
-        Job job = jobService.getEntityOrThrow(jobId);
-        if (job.getStatus() != Job.Status.CLOSED) {
-            throw new BadRequestException("Interview selection is allowed only when the job status is CLOSED");
-        }
+        jobService.getEntityOrThrow(jobId);
 
         if (applicationIds == null || applicationIds.isEmpty()) {
             throw new BadRequestException("applicationIds is required");
@@ -92,40 +90,23 @@ public class JobApplicationService {
             }
         }
 
-        String jobTitle = job.getTitle();
         for (JobApplication app : selected) {
             app.setStatus(JobApplication.ApplicationStatus.SELECTED_FOR_INTERVIEW);
-            emailNotificationService.queueHiringSelectedForInterviewEmail(app.getEmail(), app.getFullName(), jobTitle);
-        }
-
-        List<JobApplication> rejected = repo.findAllByJobIdAndIdNotInAndStatusIn(
-                jobId,
-                uniqueIds,
-                List.of(JobApplication.ApplicationStatus.APPLIED, JobApplication.ApplicationStatus.UNDER_REVIEW)
-        );
-        for (JobApplication app : rejected) {
-            app.setStatus(JobApplication.ApplicationStatus.REJECTED);
-            emailNotificationService.queueHiringRejectedPreInterviewEmail(app.getEmail(), app.getFullName(), jobTitle);
         }
 
         repo.saveAll(selected);
-        repo.saveAll(rejected);
         return repo.findAllByJobId(jobId).stream().map(this::toAdmin).toList();
     }
 
     @Transactional
     public JobApplicationAdminResponse hireCandidate(Long jobId, HireCandidateRequest req) {
-        Job job = jobService.getEntityOrThrow(jobId);
-        if (job.getStatus() != Job.Status.CLOSED) {
-            throw new BadRequestException("Hiring is allowed only when the job status is CLOSED");
-        }
-
-        if (repo.existsByJobIdAndStatus(jobId, JobApplication.ApplicationStatus.HIRED)) {
-            throw new BadRequestException("A candidate is already hired for this job");
-        }
+        jobService.getEntityOrThrow(jobId);
 
         JobApplication selectedCandidate = repo.findByIdAndJobId(req.applicationId(), jobId)
                 .orElseThrow(() -> new NotFoundException("Job application not found"));
+        if (selectedCandidate.getStatus() == JobApplication.ApplicationStatus.HIRED) {
+            throw new BadRequestException("Candidate is already hired");
+        }
 
         Employee employee = employeeService.createEntityFromHiredApplication(
                 selectedCandidate.getFullName(),
@@ -138,24 +119,39 @@ public class JobApplicationService {
 
         selectedCandidate.setStatus(JobApplication.ApplicationStatus.HIRED);
         selectedCandidate.setHiredEmployee(employee);
-        String jobTitle = job.getTitle();
-        emailNotificationService.queueHiringHiredEmail(
-                selectedCandidate.getEmail(),
-                selectedCandidate.getFullName(),
-                jobTitle
-        );
+        repo.save(selectedCandidate);
+
+        return toAdmin(selectedCandidate);
+    }
+
+    @Transactional
+    public List<JobApplicationAdminResponse> sendRejectionLetters(Long jobId) {
+        Job job = jobService.getEntityOrThrow(jobId);
+        if (!repo.existsByJobIdAndStatus(jobId, JobApplication.ApplicationStatus.HIRED)) {
+            throw new BadRequestException("At least one candidate must be hired before sending rejections");
+        }
 
         List<JobApplication> applications = repo.findAllByJobId(jobId);
+        List<JobApplication> rejected = new ArrayList<>();
+        String jobTitle = job.getTitle();
+
         for (JobApplication app : applications) {
-            if (app.getId().equals(selectedCandidate.getId())) {
+            if (app.getStatus() == JobApplication.ApplicationStatus.HIRED
+                    || app.getStatus() == JobApplication.ApplicationStatus.REJECTED) {
                 continue;
             }
             app.setStatus(JobApplication.ApplicationStatus.REJECTED);
             app.setHiredEmployee(null);
+            emailNotificationService.queueHiringRejectedPostInterviewEmail(
+                    app.getEmail(),
+                    app.getFullName(),
+                    jobTitle
+            );
+            rejected.add(app);
         }
-        repo.saveAll(applications);
 
-        return toAdmin(selectedCandidate);
+        repo.saveAll(rejected);
+        return applications.stream().map(this::toAdmin).toList();
     }
 
     @Transactional(readOnly = true)

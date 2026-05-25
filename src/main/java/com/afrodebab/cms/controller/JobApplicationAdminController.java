@@ -53,4 +53,9 @@ public class JobApplicationAdminController {
                                             @Valid @RequestBody HireCandidateRequest req) {
         return service.hireCandidate(jobId, req);
     }
+
+    @PostMapping("/{jobId}/send-rejections")
+    public List<JobApplicationAdminResponse> sendRejections(@PathVariable Long jobId) {
+        return service.sendRejectionLetters(jobId);
+    }
 }

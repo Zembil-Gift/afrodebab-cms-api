@@ -32,8 +32,6 @@ build/
 
 ### VS Code ###
 .vscode/
-
-
+.commandcode/
+SKILLS.md
 AGENTS.md
-ARCHITECTURE.md
-FILE_MAP.md

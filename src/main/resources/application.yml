@@ -1,9 +1,14 @@
 server:
   port: ${PORT:8080}
+  error:
+    include-stacktrace: never
+    include-exception: false
+    include-message: always
+    include-binding-errors: never
 
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:cms}?sslmode=${SSL_MODE:require}&channelBinding=disable
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=${SSL_MODE:require}&channelBinding=disable
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -14,7 +19,7 @@ spring:
       max-request-size: 50MB
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: false
     properties:
@@ -36,7 +41,7 @@ management:
 
 app:
   jwt:
-    secret: ${APP_JWT_SECRET:TEST_JWT}
+    secret: ${APP_JWT_SECRET}
     expiresMinutes: ${APP_JWT_EXPIRESMINUTES:120}
   cloudflare:
     r2:
@@ -50,6 +55,13 @@ app:
     apiKey: ${SENDGRID_API_KEY:}
     fromEmail: ${SENDGRID_FROM_EMAIL:}
     fromName: ${SENDGRID_FROM_NAME:AfroDebab CMS}
+  attendance:
+    entryTime: ${ATTENDANCE_ENTRY_TIME:09:00}
+    exitTime: ${ATTENDANCE_EXIT_TIME:17:00}
+    lunchStartTime: ${ATTENDANCE_LUNCH_START_TIME:12:30}
+    lunchEndTime: ${ATTENDANCE_LUNCH_END_TIME:13:30}
+    graceMinutes: ${ATTENDANCE_GRACE_MINUTES:30}
+    maxLunchBreakMinutes: ${ATTENDANCE_MAX_LUNCH_BREAK_MINUTES:70}
 
 springdoc:
   api-docs:

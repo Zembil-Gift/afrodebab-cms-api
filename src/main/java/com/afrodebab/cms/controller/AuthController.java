@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.util.Locale;
 
 @Tag(name = "Auth")
 @RestController
@@ -34,15 +35,17 @@ public class AuthController {
 
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest req) {
-        authManager.authenticate(new UsernamePasswordAuthenticationToken(req.email(), req.password()));
+        String normalizedEmail = req.email().trim().toLowerCase(Locale.ROOT);
+
+        authManager.authenticate(new UsernamePasswordAuthenticationToken(normalizedEmail, req.password()));
 
         // update last_login_at
-        adminRepo.findByEmail(req.email()).ifPresent(a -> {
+        adminRepo.findByEmailIgnoreCase(normalizedEmail).ifPresent(a -> {
             a.setLastLoginAt(Instant.now());
             adminRepo.save(a);
         });
 
-        String token = jwtService.generateToken(req.email(), "ADMIN");
+        String token = jwtService.generateToken(normalizedEmail, "ADMIN");
         return new LoginResponse(token);
     }
 }

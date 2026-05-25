@@ -18,7 +18,8 @@ public class AdminUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        Admin admin = repo.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("Admin not found"));
+        Admin admin = repo.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Admin not found"));
         if (!admin.isActive()) throw new UsernameNotFoundException("Admin is inactive");
 
         return new User(admin.getEmail(), admin.getPasswordHash(), List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));

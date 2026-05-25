@@ -1,5 +1,7 @@
 package com.afrodebab.cms.controller;
 
+import com.afrodebab.cms.dto.AdminAttendanceStatusUpdateRequest;
+import com.afrodebab.cms.dto.EmployeeConnectedAccountsAdminResponse;
 import com.afrodebab.cms.dto.EmployeeCreateRequest;
 import com.afrodebab.cms.dto.EmployeeAttendanceResponse;
 import com.afrodebab.cms.dto.EmployeeAttendanceUpsertRequest;
@@ -43,11 +45,18 @@ public class EmployeeAdminController {
             @RequestParam String email,
             @RequestParam String phone,
             @RequestParam String position,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String employmentType,
+            @RequestParam(required = false) String employeeStatus,
             @RequestParam(required = false) String linkedinUrl,
             @RequestParam(required = false) String photoUrl,
+            @RequestParam(required = false) String githubUsername,
+            @RequestParam(required = false) String trelloUsername,
+            @RequestParam(required = false) String telegramUsername,
             @RequestParam(required = false) LocalDate salaryDate,
             @RequestParam(required = false) Long salaryAmountMinor,
-            @RequestParam(required = false) Set<DayOfWeek> salaryScheduleDays,
+            @RequestParam Set<DayOfWeek> salaryScheduleDays,
             @RequestParam(name = "photo", required = false) MultipartFile photo,
             @RequestParam(name = "file", required = false) MultipartFile file
     ) {
@@ -57,8 +66,15 @@ public class EmployeeAdminController {
                 email,
                 phone,
                 position,
+                role,
+                department,
+                employmentType,
+                employeeStatus,
                 linkedinUrl,
                 photoUrl,
+                githubUsername,
+                trelloUsername,
+                telegramUsername,
                 salaryDate,
                 salaryAmountMinor,
                 salaryScheduleDays,
@@ -79,6 +95,71 @@ public class EmployeeAdminController {
 
         var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
         return service.list(pageable);
+    }
+
+    @GetMapping("/with-github")
+    public Page<EmployeeResponse> listWithGithubUsername(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
+    ) {
+        var dir = "asc".equalsIgnoreCase(direction)
+                ? Sort.Direction.ASC
+                : Sort.Direction.DESC;
+
+        var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
+        return service.listWithGithubUsername(pageable);
+    }
+
+    @GetMapping("/with-trello")
+    public Page<EmployeeResponse> listWithTrelloUsername(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
+    ) {
+        var dir = "asc".equalsIgnoreCase(direction)
+                ? Sort.Direction.ASC
+                : Sort.Direction.DESC;
+
+        var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
+        return service.listWithTrelloUsername(pageable);
+    }
+
+    @GetMapping("/with-telegram")
+    public Page<EmployeeResponse> listWithTelegramUsername(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
+    ) {
+        var dir = "asc".equalsIgnoreCase(direction)
+                ? Sort.Direction.ASC
+                : Sort.Direction.DESC;
+
+        var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
+        return service.listWithTelegramUsername(pageable);
+    }
+
+    @GetMapping("/connected-accounts")
+    public Page<EmployeeConnectedAccountsAdminResponse> listConnectedAccounts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
+    ) {
+        var dir = "asc".equalsIgnoreCase(direction)
+                ? Sort.Direction.ASC
+                : Sort.Direction.DESC;
+
+        var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
+        return service.listConnectedAccounts(pageable);
+    }
+
+    @GetMapping("/by-github/{githubUsername}")
+    public EmployeeResponse getByGithubUsername(@PathVariable String githubUsername) {
+        return service.getByGithubUsername(githubUsername);
     }
 
     @GetMapping("/{id}")
@@ -115,5 +196,14 @@ public class EmployeeAdminController {
     @GetMapping("/{id}/attendance")
     public List<EmployeeAttendanceResponse> getAttendanceHistory(@PathVariable Long id) {
         return attendanceService.history(id);
+    }
+
+    @PatchMapping("/{id}/attendance/status")
+    public EmployeeAttendanceResponse updateAttendanceFinalStatus(
+            @PathVariable Long id,
+            @RequestParam LocalDate date,
+            @Valid @RequestBody AdminAttendanceStatusUpdateRequest req
+    ) {
+        return attendanceService.updateFinalStatus(id, date, req);
     }
 }

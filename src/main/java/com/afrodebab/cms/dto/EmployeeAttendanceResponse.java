@@ -2,6 +2,7 @@ package com.afrodebab.cms.dto;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 
 public record EmployeeAttendanceResponse(
         Long id,
@@ -11,6 +12,8 @@ public record EmployeeAttendanceResponse(
         Instant clockOutAt,
         Instant lunchBreakInAt,
         Instant lunchBreakOutAt,
+        Map<String, String> attendanceStatus,
+        String notes,
         Instant createdAt,
         Instant updatedAt
 ) {}

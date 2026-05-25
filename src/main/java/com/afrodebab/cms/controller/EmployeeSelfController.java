@@ -2,6 +2,8 @@ package com.afrodebab.cms.controller;
 
 import com.afrodebab.cms.dto.EmployeeAttendanceResponse;
 import com.afrodebab.cms.dto.EmployeeChangePasswordRequest;
+import com.afrodebab.cms.dto.EmployeeConnectedAccountsResponse;
+import com.afrodebab.cms.dto.EmployeeConnectedAccountsUpdateRequest;
 import com.afrodebab.cms.dto.EmployeePaymentResponse;
 import com.afrodebab.cms.dto.EmployeeResponse;
 import com.afrodebab.cms.service.EmployeeAttendanceService;
@@ -41,9 +43,32 @@ public class EmployeeSelfController {
         return service.getOwnProfile(authentication.getName());
     }
 
+
+
+
+    @GetMapping("/connected-accounts")
+    public EmployeeConnectedAccountsResponse connectedAccounts(Authentication authentication) {
+        return service.getOwnConnectedAccounts(authentication.getName());
+    }
+
+    @PatchMapping("/connected-accounts")
+    public EmployeeConnectedAccountsResponse updateConnectedAccounts(Authentication authentication,
+                                                                     @RequestBody EmployeeConnectedAccountsUpdateRequest req) {
+        return service.updateOwnConnectedAccounts(authentication.getName(), req);
+    }
+
     @PostMapping("/photo")
     public EmployeeResponse uploadPhoto(Authentication authentication, @RequestParam("file") MultipartFile file) {
         return service.uploadOwnPhoto(authentication.getName(), file);
+    }
+
+    @RequestMapping(value = "/profile", method = {RequestMethod.PATCH, RequestMethod.POST}, consumes = "multipart/form-data")
+    public EmployeeResponse updateProfile(Authentication authentication,
+                                          @RequestParam(required = false) String linkedinUrl,
+                                          @RequestParam(name = "photo", required = false) MultipartFile photo,
+                                          @RequestParam(name = "file", required = false) MultipartFile file) {
+        MultipartFile upload = (photo != null && !photo.isEmpty()) ? photo : file;
+        return service.updateOwnProfile(authentication.getName(), linkedinUrl, upload);
     }
 
     @PostMapping("/clock-in")

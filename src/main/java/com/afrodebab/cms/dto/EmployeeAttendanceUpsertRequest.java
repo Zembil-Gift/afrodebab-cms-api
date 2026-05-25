@@ -7,8 +7,9 @@ import java.time.LocalDate;
 
 public record EmployeeAttendanceUpsertRequest(
         @NotNull(message = "date is required") LocalDate date,
-        @NotNull(message = "clockInAt is required") Instant clockInAt,
-        @NotNull(message = "clockOutAt is required") Instant clockOutAt,
+        Instant clockInAt,
+        Instant clockOutAt,
         Instant lunchBreakInAt,
-        Instant lunchBreakOutAt
+        Instant lunchBreakOutAt,
+        String notes
 ) {}
