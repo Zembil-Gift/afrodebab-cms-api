@@ -10,4 +10,9 @@ import java.util.Optional;
 public interface EmployeeAttendanceRepository extends JpaRepository<EmployeeAttendance, Long> {
     Optional<EmployeeAttendance> findByEmployeeIdAndAttendanceDate(Long employeeId, LocalDate attendanceDate);
     List<EmployeeAttendance> findAllByEmployeeIdOrderByAttendanceDateDesc(Long employeeId);
+    List<EmployeeAttendance> findAllByEmployeeIdAndAttendanceDateBetweenOrderByAttendanceDateAsc(
+            Long employeeId,
+            LocalDate from,
+            LocalDate to
+    );
 }

@@ -35,7 +35,25 @@ public class Employee {
     @Column(name = "linkedin_url")
     private String linkedinUrl;
 
+    @Column(name = "github_username")
+    private String githubUsername;
+
+    @Column(name = "trello_username")
+    private String trelloUsername;
+
+    @Column(name = "telegram_username")
+    private String telegramUsername;
+
     private String photo;
+
+    private String role;
+    private String department;
+
+    @Column(name = "employment_type")
+    private String employmentType;
+
+    @Column(name = "employee_status")
+    private String employeeStatus;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
@@ -63,7 +81,7 @@ public class Employee {
     )
     @Column(name = "schedule_day", nullable = false)
     @Enumerated(EnumType.STRING)
-    private Set<DayOfWeek> salaryScheduleDays = new HashSet<>();
+    private Set<DayOfWeek> officeDays = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

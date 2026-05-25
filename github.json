@@ -1,0 +1,193 @@
+{
+  "generatedAt": "2026-05-21T17:54:25.245+03:00",
+  "samples": [
+    {
+      "id": "admin-employees-with-github",
+      "method": "GET",
+      "path": "/admin/employees/with-github?page=0&size=10&sortBy=name&direction=asc",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        }
+      },
+      "response": {
+        "content": [
+          {
+            "id": 42,
+            "name": "Sara Alemu",
+            "email": "sara.alemu@afrodebab.com",
+            "phone": "+251900000000",
+            "position": "Backend Developer",
+            "role": "EMPLOYEE",
+            "department": "Engineering",
+            "employmentType": "FULL_TIME",
+            "employeeStatus": "ACTIVE",
+            "linkedinUrl": "https://linkedin.com/in/sara-alemu",
+            "photo": "https://cdn.afrodebab.com/employees/42.jpg",
+            "githubUsername": "sara-alemu",
+            "active": true,
+            "salaryDate": "2026-05-01",
+            "salaryAmountMinor": 5000000,
+            "salaryScheduleDays": ["MONDAY", "WEDNESDAY", "FRIDAY"],
+            "createdAt": "2026-05-01T08:00:00Z",
+            "updatedAt": "2026-05-21T12:21:10Z"
+          }
+        ],
+        "pageable": {
+          "pageNumber": 0,
+          "pageSize": 10
+        },
+        "totalElements": 1,
+        "totalPages": 1,
+        "last": true,
+        "first": true,
+        "numberOfElements": 1,
+        "empty": false
+      }
+    },
+    {
+      "id": "admin-employee-by-github-username",
+      "method": "GET",
+      "path": "/admin/employees/by-github/{githubUsername}",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        },
+        "pathParams": {
+          "githubUsername": "sara-alemu"
+        }
+      },
+      "response": {
+        "id": 42,
+        "name": "Sara Alemu",
+        "email": "sara.alemu@afrodebab.com",
+        "phone": "+251900000000",
+        "position": "Backend Developer",
+        "role": "EMPLOYEE",
+        "department": "Engineering",
+        "employmentType": "FULL_TIME",
+        "employeeStatus": "ACTIVE",
+        "linkedinUrl": "https://linkedin.com/in/sara-alemu",
+        "photo": "https://cdn.afrodebab.com/employees/42.jpg",
+        "githubUsername": "sara-alemu",
+        "active": true,
+        "salaryDate": "2026-05-01",
+        "salaryAmountMinor": 5000000,
+        "salaryScheduleDays": ["MONDAY", "WEDNESDAY", "FRIDAY"],
+        "createdAt": "2026-05-01T08:00:00Z",
+        "updatedAt": "2026-05-21T12:21:10Z"
+      }
+    },
+    {
+      "id": "admin-github-employee-report",
+      "method": "GET",
+      "path": "/admin/github/report/{employeeId}",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        },
+        "pathParams": {
+          "employeeId": 42
+        }
+      },
+      "response": {
+        "employeeId": 42,
+        "employeeName": "Sara Alemu",
+        "githubUsername": "sara-alemu",
+        "totalCommits": 18,
+        "prsOpened": 2,
+        "prsMerged": 1,
+        "prsClosed": 0,
+        "prReviews": 3,
+        "issuesOpened": 1,
+        "issuesClosed": 1,
+        "recentActivities": [
+          {
+            "id": 10001,
+            "employeeId": 42,
+            "employeeName": "Sara Alemu",
+            "githubUsername": "sara-alemu",
+            "activityType": "COMMIT",
+            "repository": "afrodebab/backend",
+            "activityId": "commit_3b7c1c4c9fbe6e6c0e9d1a2b3c4d5e6f7a8b9c0d",
+            "title": "Fix metrics aggregation for weekly period",
+            "description": "Pushed commit: 3b7c1c4c\nFull Message: Fix metrics aggregation for weekly period\n\n- handle empty activities\n- add tests",
+            "url": "https://github.com/afrodebab/backend/commit/3b7c1c4c9fbe6e6c0e9d1a2b3c4d5e6f7a8b9c0d",
+            "activityTimestamp": "2026-05-21T12:20:00Z",
+            "createdAt": "2026-05-21T12:21:10Z",
+            "updatedAt": "2026-05-21T12:21:10Z"
+          },
+          {
+            "id": 10002,
+            "employeeId": 42,
+            "employeeName": "Sara Alemu",
+            "githubUsername": "sara-alemu",
+            "activityType": "PR_OPENED",
+            "repository": "afrodebab/backend",
+            "activityId": "pr_opened_987654321",
+            "title": "Opened PR: Add GitHub tracker report endpoint",
+            "description": "Adds report and aggregate endpoints for GitHub activity.",
+            "url": "https://github.com/afrodebab/backend/pull/17",
+            "activityTimestamp": "2026-05-20T09:05:00Z",
+            "createdAt": "2026-05-20T09:05:10Z",
+            "updatedAt": "2026-05-20T09:05:10Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "admin-github-sync",
+      "method": "POST",
+      "path": "/admin/github/sync",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        }
+      },
+      "response": {
+        "status": "success",
+        "message": "GitHub activity sync triggered manually",
+        "syncedCount": 12
+      }
+    },
+    {
+      "id": "employee-own-github-report",
+      "method": "GET",
+      "path": "/employee/me/github/report",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <EMPLOYEE_JWT>"
+        }
+      },
+      "response": {
+        "employeeId": 42,
+        "employeeName": "Sara Alemu",
+        "githubUsername": "sara-alemu",
+        "totalCommits": 18,
+        "prsOpened": 2,
+        "prsMerged": 1,
+        "prsClosed": 0,
+        "prReviews": 3,
+        "issuesOpened": 1,
+        "issuesClosed": 1,
+        "recentActivities": [
+          {
+            "id": 10001,
+            "employeeId": 42,
+            "employeeName": "Sara Alemu",
+            "githubUsername": "sara-alemu",
+            "activityType": "COMMIT",
+            "repository": "afrodebab/backend",
+            "activityId": "commit_3b7c1c4c9fbe6e6c0e9d1a2b3c4d5e6f7a8b9c0d",
+            "title": "Fix metrics aggregation for weekly period",
+            "description": "Pushed commit: 3b7c1c4c\nFull Message: Fix metrics aggregation for weekly period\n\n- handle empty activities\n- add tests",
+            "url": "https://github.com/afrodebab/backend/commit/3b7c1c4c9fbe6e6c0e9d1a2b3c4d5e6f7a8b9c0d",
+            "activityTimestamp": "2026-05-21T12:20:00Z",
+            "createdAt": "2026-05-21T12:21:10Z",
+            "updatedAt": "2026-05-21T12:21:10Z"
+          }
+        ]
+      }
+    }
+  ]
+}

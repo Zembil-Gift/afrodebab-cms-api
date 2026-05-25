@@ -63,11 +63,18 @@ public class EmployeeService {
         employee.setEmail(normalizedEmail);
         employee.setPhone(req.phone());
         employee.setPosition(req.position());
+        employee.setRole(req.role());
+        employee.setDepartment(req.department());
+        employee.setEmploymentType(req.employmentType());
+        employee.setEmployeeStatus(req.employeeStatus());
         employee.setLinkedinUrl(req.linkedinUrl());
         employee.setPhoto(req.photo());
+        employee.setGithubUsername(req.githubUsername());
+        employee.setTrelloUsername(req.trelloUsername());
+        employee.setTelegramUsername(req.telegramUsername());
         employee.setSalaryEffectiveDate(req.salaryDate());
         employee.setSalaryAmountMinor(req.salaryAmountMinor());
-        employee.setSalaryScheduleDays(normalizeScheduleDays(req.salaryScheduleDays()));
+        employee.setOfficeDays(normalizeScheduleDays(req.salaryScheduleDays()));
         employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
         employee.setActive(true);
 
@@ -78,7 +85,8 @@ public class EmployeeService {
 
     @Transactional
     public EmployeeResponse createFromForm(String name, String email, String phone, String position,
-                                           String linkedinUrl, String photoUrl, LocalDate salaryDate,
+                                           String role, String department, String employmentType, String employeeStatus,
+                                           String linkedinUrl, String photoUrl, String githubUsername, String trelloUsername, String telegramUsername, LocalDate salaryDate,
                                            Long salaryAmountMinor, Set<DayOfWeek> salaryScheduleDays,
                                            MultipartFile photo) {
         String normalizedEmail = normalizeEmail(email);
@@ -90,11 +98,18 @@ public class EmployeeService {
         employee.setEmail(normalizedEmail);
         employee.setPhone(phone);
         employee.setPosition(position);
+        employee.setRole(role);
+        employee.setDepartment(department);
+        employee.setEmploymentType(employmentType);
+        employee.setEmployeeStatus(employeeStatus);
         employee.setLinkedinUrl(linkedinUrl);
         employee.setPhoto(photoUrl);
+        employee.setGithubUsername(githubUsername);
+        employee.setTrelloUsername(trelloUsername);
+        employee.setTelegramUsername(telegramUsername);
         employee.setSalaryEffectiveDate(salaryDate);
         employee.setSalaryAmountMinor(salaryAmountMinor);
-        employee.setSalaryScheduleDays(normalizeScheduleDays(salaryScheduleDays));
+        employee.setOfficeDays(normalizeScheduleDays(salaryScheduleDays));
         employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
         employee.setActive(true);
 
@@ -138,7 +153,7 @@ public class EmployeeService {
         employee.setPosition(position);
         employee.setSalaryEffectiveDate(salaryDate);
         employee.setSalaryAmountMinor(salaryAmountMinor);
-        employee.setSalaryScheduleDays(EnumSet.noneOf(DayOfWeek.class));
+        employee.setOfficeDays(EnumSet.noneOf(DayOfWeek.class));
         employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
         employee.setActive(true);
 
@@ -153,8 +168,45 @@ public class EmployeeService {
     }
 
     @Transactional(readOnly = true)
+    public Page<EmployeeResponse> listWithGithubUsername(Pageable pageable) {
+        return employeeRepo.findAllWithGithubUsername(pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EmployeeResponse> listWithTrelloUsername(Pageable pageable) {
+        return employeeRepo.findAllWithTrelloUsername(pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EmployeeResponse> listWithTelegramUsername(Pageable pageable) {
+        return employeeRepo.findAllWithTelegramUsername(pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
     public EmployeeResponse getById(Long id) {
         return toResponse(getEntityOrThrow(id));
+    }
+
+    @Transactional(readOnly = true)
+    public EmployeeResponse getByGithubUsername(String githubUsername) {
+        if (githubUsername == null || githubUsername.trim().isEmpty()) {
+            throw new BadRequestException("githubUsername is required");
+        }
+
+        String normalized = githubUsername.trim();
+        if (normalized.startsWith("@")) normalized = normalized.substring(1);
+        if (normalized.isEmpty()) throw new BadRequestException("githubUsername is required");
+
+        List<Employee> matches = employeeRepo.findAllByGithubUsernameIgnoreCase(normalized);
+        if (matches.isEmpty()) throw new NotFoundException("Employee not found");
+
+        if (matches.size() > 1) {
+            List<Employee> active = matches.stream().filter(Employee::isActive).toList();
+            if (active.size() == 1) return toResponse(active.get(0));
+            throw new BadRequestException("Multiple employees found for githubUsername");
+        }
+
+        return toResponse(matches.get(0));
     }
 
     @Transactional
@@ -170,12 +222,19 @@ public class EmployeeService {
         if (req.name() != null) employee.setName(req.name());
         if (req.phone() != null) employee.setPhone(req.phone());
         if (req.position() != null) employee.setPosition(req.position());
+        if (req.role() != null) employee.setRole(req.role());
+        if (req.department() != null) employee.setDepartment(req.department());
+        if (req.employmentType() != null) employee.setEmploymentType(req.employmentType());
+        if (req.employeeStatus() != null) employee.setEmployeeStatus(req.employeeStatus());
         if (req.linkedinUrl() != null) employee.setLinkedinUrl(req.linkedinUrl());
         if (req.photo() != null) employee.setPhoto(req.photo());
+        if (req.githubUsername() != null) employee.setGithubUsername(req.githubUsername());
+        if (req.trelloUsername() != null) employee.setTrelloUsername(req.trelloUsername());
+        if (req.telegramUsername() != null) employee.setTelegramUsername(req.telegramUsername());
         if (req.active() != null) employee.setActive(req.active());
         if (req.salaryDate() != null) employee.setSalaryEffectiveDate(req.salaryDate());
         if (req.salaryAmountMinor() != null) employee.setSalaryAmountMinor(req.salaryAmountMinor());
-        if (req.salaryScheduleDays() != null) employee.setSalaryScheduleDays(normalizeScheduleDays(req.salaryScheduleDays()));
+        if (req.salaryScheduleDays() != null) employee.setOfficeDays(normalizeScheduleDays(req.salaryScheduleDays()));
 
         employeeRepo.save(employee);
         return toResponse(employee);
@@ -259,20 +318,27 @@ public class EmployeeService {
     }
 
     private EmployeeResponse toResponse(Employee employee) {
-        List<DayOfWeek> salaryScheduleDays = new ArrayList<>(employee.getSalaryScheduleDays());
-        salaryScheduleDays.sort(DayOfWeek::compareTo);
+        List<DayOfWeek> officeDays = new ArrayList<>(employee.getOfficeDays());
+        officeDays.sort(DayOfWeek::compareTo);
         return new EmployeeResponse(
                 employee.getId(),
                 employee.getName(),
                 employee.getEmail(),
                 employee.getPhone(),
                 employee.getPosition(),
+                employee.getRole(),
+                employee.getDepartment(),
+                employee.getEmploymentType(),
+                employee.getEmployeeStatus(),
                 employee.getLinkedinUrl(),
                 employee.getPhoto(),
+                employee.getGithubUsername(),
+                employee.getTrelloUsername(),
+                employee.getTelegramUsername(),
                 employee.isActive(),
                 employee.getSalaryEffectiveDate(),
                 employee.getSalaryAmountMinor(),
-                salaryScheduleDays,
+                officeDays,
                 employee.getCreatedAt(),
                 employee.getUpdatedAt()
         );

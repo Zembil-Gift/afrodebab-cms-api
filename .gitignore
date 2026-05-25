@@ -32,7 +32,7 @@ build/
 
 ### VS Code ###
 .vscode/
-
+.commandcode/
 
 AGENTS.md
 ARCHITECTURE.md

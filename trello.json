@@ -1,0 +1,189 @@
+{
+  "generatedAt": "2026-05-23T21:54:04.760+03:00",
+  "samples": [
+    {
+      "id": "admin-employees-with-trello",
+      "method": "GET",
+      "path": "/admin/employees/with-trello?page=0&size=10&sortBy=name&direction=asc",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        }
+      },
+      "response": {
+        "content": [
+          {
+            "id": 42,
+            "name": "Sara Alemu",
+            "email": "sara.alemu@afrodebab.com",
+            "phone": "+251900000000",
+            "position": "Backend Developer",
+            "role": "EMPLOYEE",
+            "department": "Engineering",
+            "employmentType": "FULL_TIME",
+            "employeeStatus": "ACTIVE",
+            "linkedinUrl": "https://linkedin.com/in/sara-alemu",
+            "photo": "https://cdn.afrodebab.com/employees/42.jpg",
+            "githubUsername": "sara-alemu",
+            "trelloUsername": "sara-alemu",
+            "active": true,
+            "salaryDate": "2026-05-01",
+            "salaryAmountMinor": 5000000,
+            "salaryScheduleDays": ["MONDAY", "WEDNESDAY", "FRIDAY"],
+            "createdAt": "2026-05-01T08:00:00Z",
+            "updatedAt": "2026-05-21T12:21:10Z"
+          }
+        ],
+        "pageable": {
+          "pageNumber": 0,
+          "pageSize": 10
+        },
+        "totalElements": 1,
+        "totalPages": 1,
+        "last": true,
+        "first": true,
+        "numberOfElements": 1,
+        "empty": false
+      }
+    },
+    {
+      "id": "admin-trello-activities",
+      "method": "GET",
+      "path": "/admin/trello/activities?page=0&size=20",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        }
+      },
+      "response": {
+        "content": [
+          {
+            "id": 5001,
+            "employeeId": 42,
+            "employeeName": "Sara Alemu",
+            "trelloUsername": "sara-alemu",
+            "activityType": "CARD_MOVED",
+            "boardName": "Software Development",
+            "cardId": "64f16c8d7a9b3d0f12345678",
+            "cardName": "Implement Trello report endpoint",
+            "listName": "In Review",
+            "activityId": "660fc3c2b4f28c8f12345678",
+            "description": "Moved card from In Progress to In Review",
+            "url": "https://trello.com/c/AbCdEf12",
+            "activityTimestamp": "2026-05-22T10:15:00Z",
+            "createdAt": "2026-05-22T10:16:00Z",
+            "updatedAt": "2026-05-22T10:16:00Z"
+          }
+        ],
+        "pageable": {
+          "pageNumber": 0,
+          "pageSize": 20
+        },
+        "totalElements": 1,
+        "totalPages": 1,
+        "last": true,
+        "first": true,
+        "numberOfElements": 1,
+        "empty": false
+      }
+    },
+    {
+      "id": "admin-trello-report",
+      "method": "GET",
+      "path": "/admin/trello/report/{employeeId}",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        },
+        "pathParams": {
+          "employeeId": 42
+        }
+      },
+      "response": {
+        "employeeId": 42,
+        "employeeName": "Sara Alemu",
+        "trelloUsername": "sara-alemu",
+        "cardsCreated": 6,
+        "cardsMoved": 9,
+        "cardsArchived": 1,
+        "commentsAdded": 14,
+        "checkItemsCompleted": 12,
+        "attachmentsAdded": 2,
+        "recentActivities": [
+          {
+            "id": 5001,
+            "employeeId": 42,
+            "employeeName": "Sara Alemu",
+            "trelloUsername": "sara-alemu",
+            "activityType": "CARD_MOVED",
+            "boardName": "Software Development",
+            "cardId": "64f16c8d7a9b3d0f12345678",
+            "cardName": "Implement Trello report endpoint",
+            "listName": "In Review",
+            "activityId": "660fc3c2b4f28c8f12345678",
+            "description": "Moved card from In Progress to In Review",
+            "url": "https://trello.com/c/AbCdEf12",
+            "activityTimestamp": "2026-05-22T10:15:00Z",
+            "createdAt": "2026-05-22T10:16:00Z",
+            "updatedAt": "2026-05-22T10:16:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "admin-trello-sync",
+      "method": "POST",
+      "path": "/admin/trello/sync",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <ADMIN_JWT>"
+        }
+      },
+      "response": {
+        "status": "success",
+        "message": "Trello activity sync triggered manually",
+        "syncedCount": 18
+      }
+    },
+    {
+      "id": "employee-own-trello-report",
+      "method": "GET",
+      "path": "/employee/me/trello/report",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <EMPLOYEE_JWT>"
+        }
+      },
+      "response": {
+        "employeeId": 42,
+        "employeeName": "Sara Alemu",
+        "trelloUsername": "sara-alemu",
+        "cardsCreated": 6,
+        "cardsMoved": 9,
+        "cardsArchived": 1,
+        "commentsAdded": 14,
+        "checkItemsCompleted": 12,
+        "attachmentsAdded": 2,
+        "recentActivities": [
+          {
+            "id": 5001,
+            "employeeId": 42,
+            "employeeName": "Sara Alemu",
+            "trelloUsername": "sara-alemu",
+            "activityType": "CARD_MOVED",
+            "boardName": "Software Development",
+            "cardId": "64f16c8d7a9b3d0f12345678",
+            "cardName": "Implement Trello report endpoint",
+            "listName": "In Review",
+            "activityId": "660fc3c2b4f28c8f12345678",
+            "description": "Moved card from In Progress to In Review",
+            "url": "https://trello.com/c/AbCdEf12",
+            "activityTimestamp": "2026-05-22T10:15:00Z",
+            "createdAt": "2026-05-22T10:16:00Z",
+            "updatedAt": "2026-05-22T10:16:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}
