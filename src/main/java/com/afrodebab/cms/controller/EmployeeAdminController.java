@@ -1,6 +1,7 @@
 package com.afrodebab.cms.controller;
 
 import com.afrodebab.cms.dto.AdminAttendanceStatusUpdateRequest;
+import com.afrodebab.cms.dto.EmployeeConnectedAccountsAdminResponse;
 import com.afrodebab.cms.dto.EmployeeCreateRequest;
 import com.afrodebab.cms.dto.EmployeeAttendanceResponse;
 import com.afrodebab.cms.dto.EmployeeAttendanceUpsertRequest;
@@ -139,6 +140,21 @@ public class EmployeeAdminController {
 
         var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
         return service.listWithTelegramUsername(pageable);
+    }
+
+    @GetMapping("/connected-accounts")
+    public Page<EmployeeConnectedAccountsAdminResponse> listConnectedAccounts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name") String sortBy,
+            @RequestParam(defaultValue = "asc") String direction
+    ) {
+        var dir = "asc".equalsIgnoreCase(direction)
+                ? Sort.Direction.ASC
+                : Sort.Direction.DESC;
+
+        var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
+        return service.listConnectedAccounts(pageable);
     }
 
     @GetMapping("/by-github/{githubUsername}")

@@ -224,9 +224,16 @@ public class MetricsService {
     }
 
     private BigDecimal computeSupportScore(Employee employee, LocalDate periodStart, LocalDate periodEnd) {
+        String telegramUsername = employee.getTelegramUsername();
+        if (telegramUsername == null || telegramUsername.isBlank()) {
+            return BigDecimal.ZERO;
+        }
         TelegramSupportReportResponse report = telegramSupportTrackerService.getEmployeeReportByEmail(
                 employee.getEmail(), null, null, periodStart.toString(), periodEnd.toString()
         );
+        if (report == null || report.totals() == null) {
+            return BigDecimal.ZERO;
+        }
         return BigDecimal.valueOf(report.totals().resolved());
     }
 

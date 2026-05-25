@@ -2,6 +2,8 @@ package com.afrodebab.cms.controller;
 
 import com.afrodebab.cms.dto.EmployeeAttendanceResponse;
 import com.afrodebab.cms.dto.EmployeeChangePasswordRequest;
+import com.afrodebab.cms.dto.EmployeeConnectedAccountsResponse;
+import com.afrodebab.cms.dto.EmployeeConnectedAccountsUpdateRequest;
 import com.afrodebab.cms.dto.EmployeePaymentResponse;
 import com.afrodebab.cms.dto.EmployeeResponse;
 import com.afrodebab.cms.service.EmployeeAttendanceService;
@@ -39,6 +41,17 @@ public class EmployeeSelfController {
     @GetMapping
     public EmployeeResponse me(Authentication authentication) {
         return service.getOwnProfile(authentication.getName());
+    }
+
+    @GetMapping("/connected-accounts")
+    public EmployeeConnectedAccountsResponse connectedAccounts(Authentication authentication) {
+        return service.getOwnConnectedAccounts(authentication.getName());
+    }
+
+    @PatchMapping("/connected-accounts")
+    public EmployeeConnectedAccountsResponse updateConnectedAccounts(Authentication authentication,
+                                                                     @RequestBody EmployeeConnectedAccountsUpdateRequest req) {
+        return service.updateOwnConnectedAccounts(authentication.getName(), req);
     }
 
     @PostMapping("/photo")

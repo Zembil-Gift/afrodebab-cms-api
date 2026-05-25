@@ -183,6 +183,11 @@ public class EmployeeService {
     }
 
     @Transactional(readOnly = true)
+    public Page<EmployeeConnectedAccountsAdminResponse> listConnectedAccounts(Pageable pageable) {
+        return employeeRepo.findAllWithConnectedAccounts(pageable).map(this::toConnectedAccountsAdminResponse);
+    }
+
+    @Transactional(readOnly = true)
     public EmployeeResponse getById(Long id) {
         return toResponse(getEntityOrThrow(id));
     }
@@ -292,6 +297,39 @@ public class EmployeeService {
         return toResponse(employee);
     }
 
+    @Transactional(readOnly = true)
+    public EmployeeConnectedAccountsResponse getOwnConnectedAccounts(String employeeEmail) {
+        Employee employee = employeeRepo.findByEmailIgnoreCase(employeeEmail)
+                .orElseThrow(() -> new NotFoundException("Employee not found"));
+        return toConnectedAccountsResponse(employee);
+    }
+
+    @Transactional
+    public EmployeeConnectedAccountsResponse updateOwnConnectedAccounts(String employeeEmail,
+                                                                        EmployeeConnectedAccountsUpdateRequest request) {
+        if (request == null || (request.githubUsername() == null
+                && request.trelloUsername() == null
+                && request.telegramUsername() == null)) {
+            throw new BadRequestException("At least one username must be provided");
+        }
+
+        Employee employee = employeeRepo.findByEmailIgnoreCase(employeeEmail)
+                .orElseThrow(() -> new NotFoundException("Employee not found"));
+
+        if (request.githubUsername() != null) {
+            employee.setGithubUsername(normalizeUsername(request.githubUsername(), "githubUsername"));
+        }
+        if (request.trelloUsername() != null) {
+            employee.setTrelloUsername(normalizeUsername(request.trelloUsername(), "trelloUsername"));
+        }
+        if (request.telegramUsername() != null) {
+            employee.setTelegramUsername(normalizeUsername(request.telegramUsername(), "telegramUsername"));
+        }
+
+        employeeRepo.save(employee);
+        return toConnectedAccountsResponse(employee);
+    }
+
     @Transactional
     public EmployeeResponse uploadOwnPhoto(String employeeEmail, MultipartFile file) {
         Employee employee = employeeRepo.findByEmailIgnoreCase(employeeEmail)
@@ -344,6 +382,27 @@ public class EmployeeService {
         );
     }
 
+    private EmployeeConnectedAccountsResponse toConnectedAccountsResponse(Employee employee) {
+        return new EmployeeConnectedAccountsResponse(
+                employee.getId(),
+                employee.getName(),
+                employee.getGithubUsername(),
+                employee.getTrelloUsername(),
+                employee.getTelegramUsername()
+        );
+    }
+
+    private EmployeeConnectedAccountsAdminResponse toConnectedAccountsAdminResponse(Employee employee) {
+        return new EmployeeConnectedAccountsAdminResponse(
+                employee.getId(),
+                employee.getName(),
+                employee.getEmail(),
+                employee.getGithubUsername(),
+                employee.getTrelloUsername(),
+                employee.getTelegramUsername()
+        );
+    }
+
     private Set<DayOfWeek> normalizeScheduleDays(Set<DayOfWeek> salaryScheduleDays) {
         if (salaryScheduleDays == null || salaryScheduleDays.isEmpty()) {
             return EnumSet.noneOf(DayOfWeek.class);
@@ -362,5 +421,19 @@ public class EmployeeService {
 
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeUsername(String username, String fieldName) {
+        if (username == null) {
+            return null;
+        }
+        String normalized = username.trim();
+        if (normalized.startsWith("@")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.isBlank()) {
+            throw new BadRequestException(fieldName + " must not be blank");
+        }
+        return normalized;
     }
 }

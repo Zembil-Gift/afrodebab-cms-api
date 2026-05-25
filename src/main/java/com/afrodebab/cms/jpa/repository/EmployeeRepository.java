@@ -93,4 +93,24 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
             nativeQuery = true
     )
     Page<Employee> findAllWithTelegramUsername(Pageable pageable);
+
+    @Query(
+            value = """
+                    select *
+                    from employees e
+                    where (e.github_username is not null and btrim(e.github_username) <> '')
+                       or (e.trello_username is not null and btrim(e.trello_username) <> '')
+                       or (e.telegram_username is not null and btrim(e.telegram_username) <> '')
+                    /*#pageable*/
+                    """,
+            countQuery = """
+                    select count(*)
+                    from employees e
+                    where (e.github_username is not null and btrim(e.github_username) <> '')
+                       or (e.trello_username is not null and btrim(e.trello_username) <> '')
+                       or (e.telegram_username is not null and btrim(e.telegram_username) <> '')
+                    """,
+            nativeQuery = true
+    )
+    Page<Employee> findAllWithConnectedAccounts(Pageable pageable);
 }
