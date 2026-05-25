@@ -175,27 +175,14 @@ public class EmployeeTimeSpentService {
     }
 
     private long calculateWorkedMinutes(EmployeeAttendance attendance) {
-        if (attendance.getClockInAt() != null && attendance.getClockOutAt() != null) {
+        if (attendance.getClockInAt() != null
+                && attendance.getClockOutAt() != null
+                && attendance.getLunchBreakInAt() != null
+                && attendance.getLunchBreakOutAt() != null) {
             long totalMinutes = Duration.between(attendance.getClockInAt(), attendance.getClockOutAt()).toMinutes();
-            if (totalMinutes > 0) {
-                if (attendance.getLunchBreakInAt() != null && attendance.getLunchBreakOutAt() != null) {
-                    long lunchMinutes = Duration.between(attendance.getLunchBreakInAt(), attendance.getLunchBreakOutAt()).toMinutes();
-                    if (lunchMinutes > 0) {
-                        totalMinutes -= lunchMinutes;
-                    }
-                }
-                return Math.max(totalMinutes, 0L);
-            }
-        }
-
-        if (attendance.getAttendanceStatus() != null) {
-            String finalStatus = attendance.getAttendanceStatus().get("final");
-            if ("ON_TIME".equals(finalStatus) || "REMOTE_APPROVED".equals(finalStatus)) {
-                return REQUIRED_MINUTES_PER_DAY;
-            }
-            if ("LATE".equals(finalStatus)) {
-                return (long) (REQUIRED_MINUTES_PER_DAY * 0.75);
-            }
+            long lunchMinutes = Duration.between(attendance.getLunchBreakInAt(), attendance.getLunchBreakOutAt()).toMinutes();
+            long worked = totalMinutes - lunchMinutes;
+            return Math.max(worked, 0L);
         }
 
         return 0L;
