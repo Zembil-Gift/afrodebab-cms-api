@@ -340,6 +340,34 @@ public class EmployeeService {
         return toResponse(employee);
     }
 
+    @Transactional
+    public EmployeeResponse updateOwnProfile(String employeeEmail,
+                                             String linkedinUrl,
+                                             MultipartFile photo) {
+        if ((linkedinUrl == null || linkedinUrl.isBlank()) && (photo == null || photo.isEmpty())) {
+            throw new BadRequestException("linkedinUrl or photo must be provided");
+        }
+
+        Employee employee = employeeRepo.findByEmailIgnoreCase(employeeEmail)
+                .orElseThrow(() -> new NotFoundException("Employee not found"));
+
+        if (linkedinUrl != null) {
+            String trimmed = linkedinUrl.trim();
+            if (trimmed.isBlank()) {
+                throw new BadRequestException("linkedinUrl must not be blank");
+            }
+            employee.setLinkedinUrl(trimmed);
+        }
+
+        if (photo != null && !photo.isEmpty()) {
+            String photoUrl = cloudflareR2Service.uploadEmployeePhoto(employee.getId(), photo);
+            employee.setPhoto(photoUrl);
+        }
+
+        employeeRepo.save(employee);
+        return toResponse(employee);
+    }
+
     private Employee getEntityOrThrow(Long id) {
         return employeeRepo.findById(id).orElseThrow(() -> new NotFoundException("Employee not found"));
     }

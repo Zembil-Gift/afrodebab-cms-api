@@ -43,6 +43,9 @@ public class EmployeeSelfController {
         return service.getOwnProfile(authentication.getName());
     }
 
+
+
+
     @GetMapping("/connected-accounts")
     public EmployeeConnectedAccountsResponse connectedAccounts(Authentication authentication) {
         return service.getOwnConnectedAccounts(authentication.getName());
@@ -57,6 +60,15 @@ public class EmployeeSelfController {
     @PostMapping("/photo")
     public EmployeeResponse uploadPhoto(Authentication authentication, @RequestParam("file") MultipartFile file) {
         return service.uploadOwnPhoto(authentication.getName(), file);
+    }
+
+    @RequestMapping(value = "/profile", method = {RequestMethod.PATCH, RequestMethod.POST}, consumes = "multipart/form-data")
+    public EmployeeResponse updateProfile(Authentication authentication,
+                                          @RequestParam(required = false) String linkedinUrl,
+                                          @RequestParam(name = "photo", required = false) MultipartFile photo,
+                                          @RequestParam(name = "file", required = false) MultipartFile file) {
+        MultipartFile upload = (photo != null && !photo.isEmpty()) ? photo : file;
+        return service.updateOwnProfile(authentication.getName(), linkedinUrl, upload);
     }
 
     @PostMapping("/clock-in")
