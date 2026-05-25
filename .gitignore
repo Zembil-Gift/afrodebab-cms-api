@@ -37,3 +37,11 @@ build/
 AGENTS.md
 ARCHITECTURE.md
 FILE_MAP.md
+
+# API sample payloads / documentation
+github.json
+peer.json
+telegram.json
+trello.json
+INTERNAL_METRICS_ENDPOINTS_CLIENT_GUIDE.md
+Internal Metrics & Review Page Documentation.md
