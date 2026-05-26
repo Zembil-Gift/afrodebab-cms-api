@@ -25,10 +25,21 @@ spring:
     properties:
       hibernate:
         format_sql: false
-
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.google.genai.autoconfigure.embedding.GoogleGenAiEmbeddingConnectionAutoConfiguration
+      - org.springframework.ai.model.google.genai.autoconfigure.embedding.GoogleGenAiTextEmbeddingAutoConfiguration
   flyway:
     enabled: true
 
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+            model: gemini-2.5-flash
+            temperature: 0.2
+            max-output-tokens: 4096
 management:
   endpoints:
     web:
@@ -62,6 +73,10 @@ app:
     lunchEndTime: ${ATTENDANCE_LUNCH_END_TIME:13:30}
     graceMinutes: ${ATTENDANCE_GRACE_MINUTES:30}
     maxLunchBreakMinutes: ${ATTENDANCE_MAX_LUNCH_BREAK_MINUTES:70}
+  ai-overview:
+    poll-interval-minutes: ${AI_OVERVIEW_POLL_INTERVAL_MINUTES:1}
+    max-job-description-chars: 3000
+    max-attempts: 3
 
 springdoc:
   api-docs:

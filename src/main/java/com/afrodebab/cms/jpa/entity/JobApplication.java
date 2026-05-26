@@ -24,6 +24,13 @@ public class JobApplication {
         HIRED
     }
 
+    public enum AiOverviewStatus {
+        PENDING,
+        PROCESSING,
+        COMPLETED,
+        FAILED
+    }
+
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
@@ -59,6 +66,23 @@ public class JobApplication {
 
     @Column(name="updated_at", nullable=true)
     private Instant updatedAt;
+
+    @Lob
+    @Column(name = "ai_overview_text")
+    private String aiOverviewText;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_overview_status")
+    private AiOverviewStatus aiOverviewStatus = AiOverviewStatus.PENDING;
+
+    @Column(name = "ai_overview_error")
+    private String aiOverviewError;
+
+    @Column(name = "ai_overview_attempt_count")
+    private int aiOverviewAttemptCount = 0;
+
+    @Column(name = "ai_overview_completed_at")
+    private Instant aiOverviewCompletedAt;
 
     @PrePersist
     void prePersist() {

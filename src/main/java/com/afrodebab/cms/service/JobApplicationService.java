@@ -1,6 +1,7 @@
 package com.afrodebab.cms.service;
 
 
+import com.afrodebab.cms.dto.AiOverviewResponse;
 import com.afrodebab.cms.dto.ApplyRequest;
 import com.afrodebab.cms.dto.ApplyResponse;
 import com.afrodebab.cms.dto.HireCandidateRequest;
@@ -29,17 +30,20 @@ public class JobApplicationService {
     private final CloudflareR2Service cloudflareR2Service;
     private final EmployeeService employeeService;
     private final EmailNotificationService emailNotificationService;
+    private final AiOverviewService aiOverviewService;
 
     public JobApplicationService(JobApplicationRepository repo,
                                  JobService jobService,
                                  CloudflareR2Service cloudflareR2Service,
                                  EmployeeService employeeService,
-                                 EmailNotificationService emailNotificationService) {
+                                 EmailNotificationService emailNotificationService,
+                                 AiOverviewService aiOverviewService) {
         this.repo = repo;
         this.jobService = jobService;
         this.cloudflareR2Service = cloudflareR2Service;
         this.employeeService = employeeService;
         this.emailNotificationService = emailNotificationService;
+        this.aiOverviewService = aiOverviewService;
     }
 
     @Transactional
@@ -164,6 +168,27 @@ public class JobApplicationService {
         return repo.findAllByJobId(jobId).stream().map(this::toAdmin).toList();
     }
 
+    @Transactional(readOnly = true)
+    public JobApplication getEntityOrThrow(Long id) {
+        return repo.findById(id)
+                .orElseThrow(() -> new NotFoundException("Job application not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public AiOverviewResponse getAiOverview(Long id) {
+        JobApplication app = getEntityOrThrow(id);
+        return new AiOverviewResponse(
+                app.getId(),
+                app.getFullName(),
+                app.getJob().getTitle(),
+                app.getAiOverviewText(),
+                app.getAiOverviewStatus() == null ? "PENDING" : app.getAiOverviewStatus().name(),
+                app.getAiOverviewError(),
+                app.getAiOverviewAttemptCount(),
+                app.getAiOverviewCompletedAt()
+        );
+    }
+
     private JobApplication createApplication(Long jobId, ApplyRequest req) {
         Job job = jobService.getEntityOrThrow(jobId);
 
@@ -189,6 +214,7 @@ public class JobApplicationService {
         app.setStatus(JobApplication.ApplicationStatus.APPLIED);
 
         repo.save(app);
+        aiOverviewService.queue(app);
         return app;
     }
 
