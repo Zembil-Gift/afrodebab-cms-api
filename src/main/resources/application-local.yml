@@ -13,14 +13,13 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
-  flyway:
-    enabled: true
-
 app:
   jwt:
     # generate your own long secret for production
     secret: "CHANGE_ME_TO_A_LONG_RANDOM_SECRET_CHANGE_ME_TO_A_LONG_RANDOM_SECRET"
     expiresMinutes: 120
+  attendance:
+    clientKey: ${APP_ATTENDANCE_CLIENT_KEY}
 
 springdoc:
   api-docs:
@@ -29,4 +28,3 @@ springdoc:
     path: /swagger-ui.html
     operationsSorter: method
     tagsSorter: alpha
-

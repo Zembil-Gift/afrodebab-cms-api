@@ -61,14 +61,13 @@ public class JobApplication {
     @JoinColumn(name = "hired_employee_id")
     private Employee hiredEmployee;
 
-    @Column(name="created_at", nullable=true, updatable=false)
+    @Column(name="created_at", nullable=false, updatable=false)
     private Instant createdAt;
 
     @Column(name="updated_at", nullable=true)
     private Instant updatedAt;
 
-    @Lob
-    @Column(name = "ai_overview_text")
+    @Column(name = "ai_overview_text", columnDefinition = "TEXT")
     private String aiOverviewText;
 
     @Enumerated(EnumType.STRING)

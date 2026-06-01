@@ -24,7 +24,7 @@ public class Event {
     @Column(nullable = false) private String title;
     @Column(nullable = false, unique = true) private String slug;
 
-    @Lob @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
     @Enumerated(EnumType.STRING)

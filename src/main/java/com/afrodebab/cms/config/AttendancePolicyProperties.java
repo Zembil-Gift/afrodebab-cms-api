@@ -14,6 +14,7 @@ public class AttendancePolicyProperties {
     private LocalTime lunchEndTime = LocalTime.of(13, 30);
     private int graceMinutes = 30;
     private int maxLunchBreakMinutes = 70;
+    private String clientKey;
 
     public LocalTime getEntryTime() {
         return entryTime;
@@ -61,5 +62,13 @@ public class AttendancePolicyProperties {
 
     public void setMaxLunchBreakMinutes(int maxLunchBreakMinutes) {
         this.maxLunchBreakMinutes = maxLunchBreakMinutes;
+    }
+
+    public String getClientKey() {
+        return clientKey;
+    }
+
+    public void setClientKey(String clientKey) {
+        this.clientKey = clientKey;
     }
 }

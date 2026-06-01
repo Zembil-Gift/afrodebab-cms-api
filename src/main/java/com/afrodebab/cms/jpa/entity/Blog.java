@@ -25,7 +25,7 @@ public class Blog {
 
     @Column(length = 400) private String excerpt;
 
-    @Lob @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @Column(name="cover_image_url")

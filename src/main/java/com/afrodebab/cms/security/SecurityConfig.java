@@ -2,6 +2,7 @@ package com.afrodebab.cms.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,7 +25,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(java.util.List.of("http://localhost:3000"));
+        config.setAllowedOrigins(java.util.List.of( "https://profile-test-brown.vercel.app", "http://localhost:3000"));
         config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(java.util.List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -49,6 +50,15 @@ public class SecurityConfig {
                         // admin auth login must be public
                         .requestMatchers("/admin/auth/**").permitAll()
                         .requestMatchers("/employee/auth/**").permitAll()
+
+                        // attendance endpoints use a custom header instead of JWT
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/employee/me/clock-in",
+                                "/employee/me/clock-out",
+                                "/employee/me/lunch-break-in",
+                                "/employee/me/lunch-break-out"
+                        ).permitAll()
 
                         // all admin endpoints require JWT
                         .requestMatchers("/admin/**").hasRole("ADMIN")

@@ -16,9 +16,6 @@ spring:
       hibernate:
         format_sql: true
 
-  flyway:
-    enabled: true
-
 management:
   endpoints:
     web:
@@ -33,6 +30,8 @@ app:
   jwt:
     secret: ${APP_JWT_SECRET}
     expiresMinutes: ${APP_JWT_EXPIRESMINUTES:120}
+  attendance:
+    clientKey: ${APP_ATTENDANCE_CLIENT_KEY}
 
 springdoc:
   api-docs:
@@ -41,5 +40,4 @@ springdoc:
     path: /swagger-ui.html
     operationsSorter: method
     tagsSorter: alpha
-
 
