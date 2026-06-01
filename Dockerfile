@@ -8,6 +8,9 @@ RUN mvn -q -DskipTests dependency:go-offline
 
 # Build
 COPY src ./src
+
+RUN touch /app/.env
+
 RUN mvn -q -DskipTests clean package
 
 # ---------- Run stage ----------
@@ -20,6 +23,8 @@ USER appuser
 
 # Copy the jar (adjust if your jar name is different)
 COPY --from=build /app/target/*.jar app.jar
+
+
 
 # Render sets PORT env var; Spring must use it
 ENV PORT=8080
