@@ -1,11 +1,13 @@
 package com.afrodebab.cms.controller;
 
+import com.afrodebab.cms.dto.EmployeeAttendanceEmailRequest;
 import com.afrodebab.cms.dto.EmployeeAttendanceResponse;
 import com.afrodebab.cms.dto.EmployeeChangePasswordRequest;
 import com.afrodebab.cms.dto.EmployeeConnectedAccountsResponse;
 import com.afrodebab.cms.dto.EmployeeConnectedAccountsUpdateRequest;
 import com.afrodebab.cms.dto.EmployeePaymentResponse;
 import com.afrodebab.cms.dto.EmployeeResponse;
+import com.afrodebab.cms.security.AttendanceKeyValidator;
 import com.afrodebab.cms.service.EmployeeAttendanceService;
 import com.afrodebab.cms.service.EmployeePaymentService;
 import com.afrodebab.cms.service.EmployeeService;
@@ -24,13 +26,16 @@ public class EmployeeSelfController {
     private final EmployeeService service;
     private final EmployeeAttendanceService attendanceService;
     private final EmployeePaymentService employeePaymentService;
+    private final AttendanceKeyValidator attendanceKeyValidator;
 
     public EmployeeSelfController(EmployeeService service,
                                   EmployeeAttendanceService attendanceService,
-                                  EmployeePaymentService employeePaymentService) {
+                                  EmployeePaymentService employeePaymentService,
+                                  AttendanceKeyValidator attendanceKeyValidator) {
         this.service = service;
         this.attendanceService = attendanceService;
         this.employeePaymentService = employeePaymentService;
+        this.attendanceKeyValidator = attendanceKeyValidator;
     }
 
     @PostMapping("/password")
@@ -72,23 +77,39 @@ public class EmployeeSelfController {
     }
 
     @PostMapping("/clock-in")
-    public EmployeeAttendanceResponse clockIn(Authentication authentication) {
-        return attendanceService.clockIn(authentication.getName());
+    public EmployeeAttendanceResponse clockIn(
+            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
+            @Valid @RequestBody EmployeeAttendanceEmailRequest req
+    ) {
+        attendanceKeyValidator.requireValidKey(attendanceKey);
+        return attendanceService.clockIn(req.email());
     }
 
     @PostMapping("/clock-out")
-    public EmployeeAttendanceResponse clockOut(Authentication authentication) {
-        return attendanceService.clockOut(authentication.getName());
+    public EmployeeAttendanceResponse clockOut(
+            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
+            @Valid @RequestBody EmployeeAttendanceEmailRequest req
+    ) {
+        attendanceKeyValidator.requireValidKey(attendanceKey);
+        return attendanceService.clockOut(req.email());
     }
 
     @PostMapping("/lunch-break-in")
-    public EmployeeAttendanceResponse lunchBreakIn(Authentication authentication) {
-        return attendanceService.lunchBreakIn(authentication.getName());
+    public EmployeeAttendanceResponse lunchBreakIn(
+            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
+            @Valid @RequestBody EmployeeAttendanceEmailRequest req
+    ) {
+        attendanceKeyValidator.requireValidKey(attendanceKey);
+        return attendanceService.lunchBreakIn(req.email());
     }
 
     @PostMapping("/lunch-break-out")
-    public EmployeeAttendanceResponse lunchBreakOut(Authentication authentication) {
-        return attendanceService.lunchBreakOut(authentication.getName());
+    public EmployeeAttendanceResponse lunchBreakOut(
+            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
+            @Valid @RequestBody EmployeeAttendanceEmailRequest req
+    ) {
+        attendanceKeyValidator.requireValidKey(attendanceKey);
+        return attendanceService.lunchBreakOut(req.email());
     }
 
     @GetMapping("/payments")

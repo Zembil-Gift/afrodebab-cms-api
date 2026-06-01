@@ -10,6 +10,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
@@ -97,6 +98,55 @@ public class CloudflareR2Service {
         String endpoint = uri.getScheme() + "://" + uri.getHost();
         if (uri.getPort() != -1) endpoint += ":" + uri.getPort();
         return new ParsedS3Api(endpoint, bucket);
+    }
+
+    public byte[] download(String resumeUrl) {
+        if (resumeUrl == null || resumeUrl.isBlank()) {
+            throw new BadRequestException("Resume URL is empty");
+        }
+        String key = extractKey(resumeUrl);
+        ParsedS3Api parsed = parseS3Api();
+
+        try (S3Client s3Client = S3Client.builder()
+                .endpointOverride(URI.create(parsed.endpoint()))
+                .region(Region.of(region))
+                .credentialsProvider(
+                        StaticCredentialsProvider.create(
+                                AwsBasicCredentials.create(accessKeyId, secretAccessKey)
+                        )
+                )
+                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+                .build()) {
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(parsed.bucket())
+                    .key(key)
+                    .build();
+            return s3Client.getObjectAsBytes(request).asByteArray();
+        } catch (Exception ex) {
+            throw new RuntimeException("Failed to download resume from R2: " + key, ex);
+        }
+    }
+
+    private String extractKey(String resumeUrl) {
+        if (publicDevelopmentUrl != null && !publicDevelopmentUrl.isBlank()) {
+            String base = publicDevelopmentUrl.replaceAll("/+$", "") + "/";
+            if (resumeUrl.startsWith(base)) {
+                return resumeUrl.substring(base.length());
+            }
+        }
+        ParsedS3Api parsed = parseS3Api();
+        String prefix = parsed.endpoint().replaceAll("/+$", "") + "/" + parsed.bucket() + "/";
+        if (resumeUrl.startsWith(prefix)) {
+            return resumeUrl.substring(prefix.length());
+        }
+        URI uri = URI.create(resumeUrl);
+        String path = uri.getPath();
+        if (path != null && !path.isBlank()) {
+            path = path.replaceAll("^/+", "");
+            int slashIdx = path.indexOf('/');
+            return slashIdx >= 0 ? path.substring(slashIdx + 1) : path;
+        }
+        throw new BadRequestException("Could not extract key from resume URL");
     }
 
     private record ParsedS3Api(String endpoint, String bucket) {}

@@ -2,6 +2,8 @@ package com.afrodebab.cms.jpa.repository;
 
 import com.afrodebab.cms.jpa.entity.JobApplication;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -18,4 +20,13 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     boolean existsByJobIdAndStatus(Long jobId, JobApplication.ApplicationStatus status);
     boolean existsByJobIdAndEmailIgnoreCase(Long jobId, String email);
     boolean existsByJobIdAndPhoneNumber(Long jobId, String phoneNumber);
+
+    @Query("""
+        SELECT a FROM JobApplication a
+        WHERE a.aiOverviewStatus = 'PENDING'
+        AND a.resumeUrl IS NOT NULL AND a.resumeUrl <> ''
+        AND a.aiOverviewAttemptCount < :maxAttempts
+        ORDER BY a.createdAt ASC LIMIT 1
+    """)
+    Optional<JobApplication> findFirstPendingAiOverview(@Param("maxAttempts") int maxAttempts);
 }

@@ -22,6 +22,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -120,7 +121,8 @@ public class EmployeeAttendanceService {
 
     @Transactional
     public EmployeeAttendanceResponse clockIn(String email) {
-        Employee employee = employeeRepo.findByEmailIgnoreCase(email)
+        String normalizedEmail = normalizeEmail(email);
+        Employee employee = employeeRepo.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -149,7 +151,8 @@ public class EmployeeAttendanceService {
 
     @Transactional
     public EmployeeAttendanceResponse clockOut(String email) {
-        Employee employee = employeeRepo.findByEmailIgnoreCase(email)
+        String normalizedEmail = normalizeEmail(email);
+        Employee employee = employeeRepo.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -187,7 +190,8 @@ public class EmployeeAttendanceService {
 
     @Transactional
     public EmployeeAttendanceResponse lunchBreakIn(String email) {
-        Employee employee = employeeRepo.findByEmailIgnoreCase(email)
+        String normalizedEmail = normalizeEmail(email);
+        Employee employee = employeeRepo.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -221,7 +225,8 @@ public class EmployeeAttendanceService {
 
     @Transactional
     public EmployeeAttendanceResponse lunchBreakOut(String email) {
-        Employee employee = employeeRepo.findByEmailIgnoreCase(email)
+        String normalizedEmail = normalizeEmail(email);
+        Employee employee = employeeRepo.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -414,5 +419,12 @@ public class EmployeeAttendanceService {
         List<DayOfWeek> sortedDays = new ArrayList<>(officeScheduleDays);
         sortedDays.sort(DayOfWeek::compareTo);
         throw new BadRequestException("Attendance is only allowed on office schedule days: " + sortedDays);
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

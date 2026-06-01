@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS employee_attendance (
     CONSTRAINT uk_employee_attendance_employee_date UNIQUE (employee_id, attendance_date)
 );
 
-CREATE INDEX idx_employee_attendance_employee_date
+CREATE INDEX IF NOT EXISTS idx_employee_attendance_employee_date
     ON employee_attendance (employee_id, attendance_date DESC);
 
 

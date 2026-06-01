@@ -13,8 +13,8 @@ SET updated_at = created_at
 WHERE updated_at IS NULL;
 
 ALTER TABLE job_applications
-    ALTER COLUMN status SET NULL,
-    ALTER COLUMN updated_at SET NULL;
+    ALTER COLUMN status DROP NOT NULL,
+    ALTER COLUMN updated_at DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_job_applications_job_status
     ON job_applications (job_id, status);
@@ -24,8 +24,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_job_applications_job_hired
     WHERE status = 'HIRED';
 
 CREATE TABLE IF NOT EXISTS email_notifications (
-    id BIGSERIAL PRIMARY KEY,
-    type VARCHAR(64) NOT NULL,
+                                                   id BIGSERIAL PRIMARY KEY,
+                                                   type VARCHAR(64) NOT NULL,
     status VARCHAR(16) NOT NULL,
     recipient_email VARCHAR(200) NOT NULL,
     subject VARCHAR(255) NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS email_notifications (
     sent_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+    );
 
 CREATE INDEX IF NOT EXISTS idx_email_notifications_status_attempt_created
     ON email_notifications (status, attempt_count, created_at);

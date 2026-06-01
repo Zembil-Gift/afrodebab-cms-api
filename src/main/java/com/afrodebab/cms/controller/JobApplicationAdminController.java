@@ -1,6 +1,7 @@
 package com.afrodebab.cms.controller;
 
 
+import com.afrodebab.cms.dto.AiOverviewResponse;
 import com.afrodebab.cms.dto.HireCandidateRequest;
 import com.afrodebab.cms.dto.JobApplicationStatusUpdateRequest;
 import com.afrodebab.cms.dto.SelectInterviewCandidatesRequest;
@@ -10,6 +11,7 @@ import com.afrodebab.cms.jpa.entity.JobApplication;
 import com.afrodebab.cms.service.JobApplicationService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -57,5 +59,10 @@ public class JobApplicationAdminController {
     @PostMapping("/{jobId}/send-rejections")
     public List<JobApplicationAdminResponse> sendRejections(@PathVariable Long jobId) {
         return service.sendRejectionLetters(jobId);
+    }
+
+    @GetMapping("/{id}/ai-overview")
+    public ResponseEntity<AiOverviewResponse> getAiOverview(@PathVariable Long id) {
+        return ResponseEntity.ok(service.getAiOverview(id));
     }
 }

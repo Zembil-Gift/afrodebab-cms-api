@@ -32,7 +32,7 @@ public class Job {
 
     private String location;
 
-    @Lob @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
     @Enumerated(EnumType.STRING)
