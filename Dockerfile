@@ -9,7 +9,6 @@ RUN mvn -q -DskipTests dependency:go-offline
 # Build
 COPY src ./src
 
-RUN touch /app/.env
 
 RUN mvn -q -DskipTests clean package
 
