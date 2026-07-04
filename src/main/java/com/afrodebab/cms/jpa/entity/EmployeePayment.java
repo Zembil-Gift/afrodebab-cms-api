@@ -40,8 +40,25 @@ public class EmployeePayment extends com.afrodebab.cms.tenant.TenantEntity {
     @Column(name = "due_date", nullable = false)
     private LocalDate dueDate;
 
+    /** Net (take-home) amount actually disbursed for this cycle: gross - income tax - employee pension. */
     @Column(name = "amount_minor", nullable = false)
     private Long amountMinor;
+
+    /** Gross salary this cycle was computed from. */
+    @Column(name = "gross_amount_minor", nullable = false)
+    private Long grossAmountMinor;
+
+    /** Progressive (variable) government income tax withheld. */
+    @Column(name = "income_tax_minor", nullable = false)
+    private Long incomeTaxMinor = 0L;
+
+    /** Employee pension contribution (7% of gross) deducted from the employee. */
+    @Column(name = "employee_pension_minor", nullable = false)
+    private Long employeePensionMinor = 0L;
+
+    /** Employer pension contribution (11% of gross) paid by the company, not deducted from the employee. */
+    @Column(name = "employer_pension_minor", nullable = false)
+    private Long employerPensionMinor = 0L;
 
     @Column(name = "paid_amount_minor")
     private Long paidAmountMinor;

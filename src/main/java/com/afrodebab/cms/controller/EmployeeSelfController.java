@@ -5,7 +5,7 @@ import com.afrodebab.cms.dto.EmployeeAttendanceResponse;
 import com.afrodebab.cms.dto.EmployeeChangePasswordRequest;
 import com.afrodebab.cms.dto.EmployeeConnectedAccountsResponse;
 import com.afrodebab.cms.dto.EmployeeConnectedAccountsUpdateRequest;
-import com.afrodebab.cms.dto.EmployeePaymentResponse;
+import com.afrodebab.cms.dto.EmployeePaymentSelfResponse;
 import com.afrodebab.cms.dto.EmployeeResponse;
 import com.afrodebab.cms.service.EmployeeAttendanceService;
 import com.afrodebab.cms.service.EmployeePaymentService;
@@ -104,12 +104,12 @@ public class EmployeeSelfController {
     }
 
     @GetMapping("/payments")
-    public List<EmployeePaymentResponse> payments(Authentication authentication) {
+    public List<EmployeePaymentSelfResponse> payments(Authentication authentication) {
         return employeePaymentService.getOwnPaymentHistory(authentication.getName());
     }
 
     @GetMapping("/payments/paid")
-    public List<EmployeePaymentResponse> paidPayments(Authentication authentication) {
+    public List<EmployeePaymentSelfResponse> paidPayments(Authentication authentication) {
         return employeePaymentService.getOwnPaidPaymentHistory(authentication.getName());
     }
 }
