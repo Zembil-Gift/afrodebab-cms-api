@@ -17,7 +17,7 @@ import com.afrodebab.cms.dto.GitHubReportResponse;
 
 @Tag(name = "Admin - GitHub Tracker")
 @RestController
-@RequestMapping("/admin/github")
+@RequestMapping("/manager/github")
 public class AdminGitHubTrackerController {
 
     private final GitHubTrackerService trackerService;

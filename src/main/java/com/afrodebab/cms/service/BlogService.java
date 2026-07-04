@@ -39,6 +39,18 @@ public class BlogService {
         return toPublic(blog);
     }
 
+    // MANAGER: list ALL of the current tenant's blogs (any status). Tenant-scoped by @TenantId.
+    @Transactional(readOnly = true)
+    public Page<BlogAdminResponse> listAllAdmin(Pageable pageable) {
+        return repo.findAll(pageable).map(this::toAdmin);
+    }
+
+    @Transactional(readOnly = true)
+    public BlogAdminResponse getAdmin(Long id) {
+        Blog b = repo.findById(id).orElseThrow(() -> new NotFoundException("Blog not found"));
+        return toAdmin(b);
+    }
+
     // ADMIN
     public BlogAdminResponse create(BlogCreateRequest req) {
         Blog b = new Blog();

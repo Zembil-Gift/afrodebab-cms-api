@@ -15,7 +15,7 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class JobApplication {
+public class JobApplication extends com.afrodebab.cms.tenant.TenantEntity {
     public enum ApplicationStatus {
         APPLIED,
         UNDER_REVIEW,

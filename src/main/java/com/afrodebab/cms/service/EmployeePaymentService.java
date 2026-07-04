@@ -4,10 +4,10 @@ import com.afrodebab.cms.dto.EmployeePaymentResponse;
 import com.afrodebab.cms.dto.MarkEmployeePaymentPaidRequest;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
-import com.afrodebab.cms.jpa.entity.Admin;
+import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.EmployeePayment;
-import com.afrodebab.cms.jpa.repository.AdminRepository;
+import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.EmployeePaymentRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,12 +27,12 @@ public class EmployeePaymentService {
 
     private final EmployeePaymentRepository employeePaymentRepo;
     private final EmployeeRepository employeeRepo;
-    private final AdminRepository adminRepo;
+    private final ManagerRepository adminRepo;
     private final EmailNotificationService emailNotificationService;
 
     public EmployeePaymentService(EmployeePaymentRepository employeePaymentRepo,
                                   EmployeeRepository employeeRepo,
-                                  AdminRepository adminRepo,
+                                  ManagerRepository adminRepo,
                                   EmailNotificationService emailNotificationService) {
         this.employeePaymentRepo = employeePaymentRepo;
         this.employeeRepo = employeeRepo;
@@ -160,12 +160,12 @@ public class EmployeePaymentService {
             return;
         }
 
-        List<Admin> activeAdmins = adminRepo.findAllByActiveTrue();
+        List<Manager> activeAdmins = adminRepo.findAllByActiveTrue();
         if (activeAdmins.isEmpty()) {
             return;
         }
 
-        for (Admin admin : activeAdmins) {
+        for (Manager admin : activeAdmins) {
             emailNotificationService.queueAdminPayrollReminderEmail(admin.getEmail(), admin.getName(), dueUnreminded.size());
         }
 

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Public - Blogs")
 @RestController
-@RequestMapping("/blogs")
+@RequestMapping("/public/{orgSlug}/blogs")
 public class BlogPublicController {
 
     private final BlogService service;

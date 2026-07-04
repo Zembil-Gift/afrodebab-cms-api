@@ -27,7 +27,7 @@ import java.util.List;
 
 @Tag(name = "Admin - Metrics")
 @RestController
-@RequestMapping({"/admin/metrics", "/api/admin/metrics"})
+@RequestMapping({"/manager/metrics", "/api/manager/metrics"})
 public class AdminMetricsController {
     private final MetricsService metricsService;
     private final PeerReviewService peerReviewService;

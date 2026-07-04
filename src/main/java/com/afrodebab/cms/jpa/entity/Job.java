@@ -14,7 +14,7 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Job {
+public class Job extends com.afrodebab.cms.tenant.TenantEntity {
     public enum Status { DRAFT, OPEN, CLOSED }
     public enum EmploymentType { FULL_TIME, PART_TIME, CONTRACT, INTERN }
 

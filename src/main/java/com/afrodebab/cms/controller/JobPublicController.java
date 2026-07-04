@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Public - Job")
 @RestController
-@RequestMapping("/jobs")
+@RequestMapping("/public/{orgSlug}/jobs")
 public class JobPublicController {
     private final JobService service;
 

@@ -7,10 +7,10 @@ import com.afrodebab.cms.dto.EmployeeConnectedAccountsResponse;
 import com.afrodebab.cms.dto.EmployeeConnectedAccountsUpdateRequest;
 import com.afrodebab.cms.dto.EmployeePaymentResponse;
 import com.afrodebab.cms.dto.EmployeeResponse;
-import com.afrodebab.cms.security.AttendanceKeyValidator;
 import com.afrodebab.cms.service.EmployeeAttendanceService;
 import com.afrodebab.cms.service.EmployeePaymentService;
 import com.afrodebab.cms.service.EmployeeService;
+import com.afrodebab.cms.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -26,16 +26,23 @@ public class EmployeeSelfController {
     private final EmployeeService service;
     private final EmployeeAttendanceService attendanceService;
     private final EmployeePaymentService employeePaymentService;
-    private final AttendanceKeyValidator attendanceKeyValidator;
 
     public EmployeeSelfController(EmployeeService service,
                                   EmployeeAttendanceService attendanceService,
-                                  EmployeePaymentService employeePaymentService,
-                                  AttendanceKeyValidator attendanceKeyValidator) {
+                                  EmployeePaymentService employeePaymentService) {
         this.service = service;
         this.attendanceService = attendanceService;
         this.employeePaymentService = employeePaymentService;
-        this.attendanceKeyValidator = attendanceKeyValidator;
+    }
+
+    /**
+     * Anonymous attendance endpoints identify the employee by email in the request body and
+     * derive their organization from that record, then scope the write to that org.
+     */
+    private EmployeeAttendanceResponse scopedByEmail(String email,
+                                                     java.util.function.Function<String, EmployeeAttendanceResponse> action) {
+        Long orgId = attendanceService.resolveOrganizationIdByEmail(email);
+        return TenantContext.callAs(orgId, () -> action.apply(email));
     }
 
     @PostMapping("/password")
@@ -77,39 +84,23 @@ public class EmployeeSelfController {
     }
 
     @PostMapping("/clock-in")
-    public EmployeeAttendanceResponse clockIn(
-            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
-            @Valid @RequestBody EmployeeAttendanceEmailRequest req
-    ) {
-        attendanceKeyValidator.requireValidKey(attendanceKey);
-        return attendanceService.clockIn(req.email());
+    public EmployeeAttendanceResponse clockIn(@Valid @RequestBody EmployeeAttendanceEmailRequest req) {
+        return scopedByEmail(req.email(), attendanceService::clockIn);
     }
 
     @PostMapping("/clock-out")
-    public EmployeeAttendanceResponse clockOut(
-            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
-            @Valid @RequestBody EmployeeAttendanceEmailRequest req
-    ) {
-        attendanceKeyValidator.requireValidKey(attendanceKey);
-        return attendanceService.clockOut(req.email());
+    public EmployeeAttendanceResponse clockOut(@Valid @RequestBody EmployeeAttendanceEmailRequest req) {
+        return scopedByEmail(req.email(), attendanceService::clockOut);
     }
 
     @PostMapping("/lunch-break-in")
-    public EmployeeAttendanceResponse lunchBreakIn(
-            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
-            @Valid @RequestBody EmployeeAttendanceEmailRequest req
-    ) {
-        attendanceKeyValidator.requireValidKey(attendanceKey);
-        return attendanceService.lunchBreakIn(req.email());
+    public EmployeeAttendanceResponse lunchBreakIn(@Valid @RequestBody EmployeeAttendanceEmailRequest req) {
+        return scopedByEmail(req.email(), attendanceService::lunchBreakIn);
     }
 
     @PostMapping("/lunch-break-out")
-    public EmployeeAttendanceResponse lunchBreakOut(
-            @RequestHeader(value = "X-Employee-Attendance-Key", required = false) String attendanceKey,
-            @Valid @RequestBody EmployeeAttendanceEmailRequest req
-    ) {
-        attendanceKeyValidator.requireValidKey(attendanceKey);
-        return attendanceService.lunchBreakOut(req.email());
+    public EmployeeAttendanceResponse lunchBreakOut(@Valid @RequestBody EmployeeAttendanceEmailRequest req) {
+        return scopedByEmail(req.email(), attendanceService::lunchBreakOut);
     }
 
     @GetMapping("/payments")

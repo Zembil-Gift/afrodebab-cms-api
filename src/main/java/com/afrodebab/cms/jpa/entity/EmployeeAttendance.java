@@ -24,7 +24,7 @@ import java.util.Map;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class EmployeeAttendance {
+public class EmployeeAttendance extends com.afrodebab.cms.tenant.TenantEntity {
     public enum AttendanceFinalStatus {
         ON_TIME,
         LATE,

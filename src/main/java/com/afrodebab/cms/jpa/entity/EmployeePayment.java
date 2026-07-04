@@ -20,7 +20,7 @@ import java.time.LocalDate;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class EmployeePayment {
+public class EmployeePayment extends com.afrodebab.cms.tenant.TenantEntity {
     public enum PaymentStatus {
         PENDING,
         PAID

@@ -11,7 +11,7 @@ import java.util.List;
 
 @Tag(name = "Admin - Employee Payments")
 @RestController
-@RequestMapping("/admin/payments")
+@RequestMapping("/manager/payments")
 public class EmployeePaymentAdminController {
     private final EmployeePaymentService employeePaymentService;
 

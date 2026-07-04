@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Public - event")
 @RestController
-@RequestMapping("/events")
+@RequestMapping("/public/{orgSlug}/events")
 public class EventPublicController {
     private final EventService service;
     public EventPublicController(EventService service) { this.service = service; }

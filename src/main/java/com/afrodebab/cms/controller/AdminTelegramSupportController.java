@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Admin - Telegram Support Tracker")
 @RestController
-@RequestMapping("/admin/telegram/support")
+@RequestMapping("/manager/telegram/support")
 public class AdminTelegramSupportController {
 
     private final TelegramSupportTrackerService trackerService;

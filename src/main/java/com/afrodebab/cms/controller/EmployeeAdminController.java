@@ -24,7 +24,7 @@ import java.util.Set;
 
 @Tag(name = "Admin - Employees")
 @RestController
-@RequestMapping("/admin/employees")
+@RequestMapping("/manager/employees")
 public class EmployeeAdminController {
     private final EmployeeService service;
     private final EmployeeAttendanceService attendanceService;

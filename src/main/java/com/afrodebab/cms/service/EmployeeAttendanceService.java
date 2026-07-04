@@ -41,6 +41,19 @@ public class EmployeeAttendanceService {
         this.attendancePolicyProperties = attendancePolicyProperties;
     }
 
+    /**
+     * Resolves an employee's organization id from their globally-unique email, ignoring
+     * tenant scope. Used by the anonymous clock-in/out endpoints to derive the org from the
+     * request body before scoping the actual attendance write.
+     */
+    public Long resolveOrganizationIdByEmail(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        return com.afrodebab.cms.tenant.TenantContext.callAsRoot(() ->
+                employeeRepo.findByEmailIgnoreCase(normalizedEmail)
+                        .map(Employee::getOrganizationId)
+                        .orElseThrow(() -> new NotFoundException("Employee not found")));
+    }
+
     @Transactional
     public EmployeeAttendanceResponse upsert(Long employeeId, EmployeeAttendanceUpsertRequest req) {
         Employee employee = employeeRepo.findById(employeeId)
