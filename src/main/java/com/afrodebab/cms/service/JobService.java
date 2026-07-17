@@ -93,7 +93,8 @@ public class JobService {
     private JobResponse toResponse(Job j) {
         return new JobResponse(
                 j.getId(), j.getTitle(), j.getSlug(), j.getDepartment(),
-                j.getEmploymentType(), j.getLocation(), j.getDescription(), j.getStatus()
+                j.getEmploymentType(), j.getLocation(), j.getDescription(), j.getStatus(),
+                j.getCreatedAt()
         );
     }
 }

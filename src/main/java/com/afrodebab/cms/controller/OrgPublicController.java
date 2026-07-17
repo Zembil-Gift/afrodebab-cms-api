@@ -24,7 +24,7 @@ public class OrgPublicController {
     public OrgPublicInfo info(@PathVariable String orgSlug) {
         return orgs.findBySlugIgnoreCase(orgSlug)
                 .filter(o -> "ACTIVE".equals(o.getStatus()))
-                .map(o -> new OrgPublicInfo(o.getName(), o.getSlug(), o.getPlan()))
+                .map(OrgPublicInfo::from)
                 .orElseThrow(() -> new NotFoundException("Organization not found"));
     }
 }

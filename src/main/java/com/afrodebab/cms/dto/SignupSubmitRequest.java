@@ -10,5 +10,8 @@ public record SignupSubmitRequest(
         @NotBlank(message = "company name is required") @Size(max = 200) String companyName,
         @NotBlank(message = "your name is required") @Size(max = 150) String contactName,
         @Email(message = "a valid email is required") @NotBlank(message = "email is required") @Size(max = 200) String email,
+        @Size(max = 60) String phone,
+        @Size(max = 120) String industry,
+        @Size(max = 512) String websiteUrl,
         @Size(max = 2000) String message
 ) {}

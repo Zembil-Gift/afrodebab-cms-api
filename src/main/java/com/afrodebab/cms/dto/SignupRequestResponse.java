@@ -9,6 +9,9 @@ public record SignupRequestResponse(
         String companyName,
         String contactName,
         String email,
+        String phone,
+        String industry,
+        String websiteUrl,
         String message,
         String status,
         Instant createdAt
@@ -19,6 +22,9 @@ public record SignupRequestResponse(
                 r.getCompanyName(),
                 r.getContactName(),
                 r.getEmail(),
+                r.getPhone(),
+                r.getIndustry(),
+                r.getWebsiteUrl(),
                 r.getMessage(),
                 r.getStatus().name(),
                 r.getCreatedAt()

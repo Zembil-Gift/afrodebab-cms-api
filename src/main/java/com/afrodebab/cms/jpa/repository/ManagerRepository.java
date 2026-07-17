@@ -9,4 +9,6 @@ import java.util.Optional;
 public interface ManagerRepository extends JpaRepository<Manager, Long> {
     Optional<Manager> findByEmailIgnoreCase(String email);
     List<Manager> findAllByActiveTrue();
+    List<Manager> findAllByActiveTrueAndTrelloTokenIsNotNull();
+    List<Manager> findAllByActiveTrueAndGithubTokenIsNotNull();
 }

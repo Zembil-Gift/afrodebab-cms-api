@@ -3,12 +3,15 @@ package com.afrodebab.cms.jpa.entity;
 import com.afrodebab.cms.tenant.TenantEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Per-organization administrator. Performs all in-org management (employees, blogs, jobs,
@@ -34,6 +37,26 @@ public class Manager extends TenantEntity {
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    /** This manager's personal Trello token, encrypted at rest. Null until they connect. */
+    @Column(name = "trello_token", columnDefinition = "TEXT")
+    private String trelloToken;
+
+    /** Trello boards this manager chose to track. May span multiple boards in one org. */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "manager_trello_boards", joinColumns = @JoinColumn(name = "manager_id"))
+    @Builder.Default
+    private Set<TrelloBoardRef> trelloBoards = new HashSet<>();
+
+    /** This manager's personal GitHub OAuth token, encrypted at rest. Null until they connect. */
+    @Column(name = "github_token", columnDefinition = "TEXT")
+    private String githubToken;
+
+    /** GitHub organizations this manager chose to track. May span multiple orgs. */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "manager_github_orgs", joinColumns = @JoinColumn(name = "manager_id"))
+    @Builder.Default
+    private Set<GitHubOrgRef> githubOrgs = new HashSet<>();
 
     @Column(name = "last_login_at")
     private Instant lastLoginAt;

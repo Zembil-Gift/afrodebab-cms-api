@@ -5,9 +5,15 @@ import com.afrodebab.cms.dto.TrelloAggregateResponse;
 import com.afrodebab.cms.dto.TrelloReportResponse;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Employee;
+import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.TrelloActivity;
+import com.afrodebab.cms.jpa.entity.TrelloBoardRef;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
+import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.TrelloActivityRepository;
+import com.afrodebab.cms.security.TokenCipher;
+import com.afrodebab.cms.service.ManagerTrelloConnectionService.ManagerRef;
+import com.afrodebab.cms.tenant.TenantContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -16,7 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -43,37 +51,47 @@ public class TrelloTrackerService {
 
     private final TrelloActivityRepository activityRepo;
     private final EmployeeRepository employeeRepo;
+    private final ManagerRepository managerRepo;
+    private final ManagerTrelloConnectionService connectionService;
+    private final TokenCipher cipher;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final TransactionTemplate txTemplate;
 
+    // Shared app key (identifies our Trello app). Each manager's personal token is stored
+    // encrypted on their Manager record; that pair (key + token) authorizes every API call.
     @Value("${TRELLO_API:}")
     private String trelloKey;
-
-    @Value("${TRELLO_TOKEN:}")
-    private String trelloToken;
-
-    @Value("${TRELLO_SECRET:}")
-    private String trelloSecret;
-
-    @Value("${TRELLO_BOARD:Software Development}")
-    private String trelloBoardName;
 
     @Autowired
     public TrelloTrackerService(TrelloActivityRepository activityRepo,
                                 EmployeeRepository employeeRepo,
-                                ObjectMapper objectMapper) {
-        this(activityRepo, employeeRepo, objectMapper, HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build());
+                                ManagerRepository managerRepo,
+                                ManagerTrelloConnectionService connectionService,
+                                TokenCipher cipher,
+                                ObjectMapper objectMapper,
+                                PlatformTransactionManager txManager) {
+        this(activityRepo, employeeRepo, managerRepo, connectionService, cipher, objectMapper,
+                txManager, HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build());
     }
 
     public TrelloTrackerService(TrelloActivityRepository activityRepo,
                                 EmployeeRepository employeeRepo,
+                                ManagerRepository managerRepo,
+                                ManagerTrelloConnectionService connectionService,
+                                TokenCipher cipher,
                                 ObjectMapper objectMapper,
+                                PlatformTransactionManager txManager,
                                 HttpClient httpClient) {
         this.activityRepo = activityRepo;
         this.employeeRepo = employeeRepo;
+        this.managerRepo = managerRepo;
+        this.connectionService = connectionService;
+        this.cipher = cipher;
         this.objectMapper = objectMapper;
+        this.txTemplate = new TransactionTemplate(txManager);
         this.httpClient = httpClient;
     }
 
@@ -87,14 +105,50 @@ public class TrelloTrackerService {
         }
     }
 
-    @Transactional
+    /**
+     * Orchestrates the sync across every organization: finds all managers who have connected
+     * Trello (root scope), then for each runs the sync inside a fresh transaction scoped to
+     * that manager's org, so activity rows are attributed to the right tenant. Not itself
+     * transactional — each org gets its own tenant-scoped session via {@link TransactionTemplate}.
+     */
     public int syncActivities() {
-        if (trelloKey == null || trelloKey.isBlank()
-                || trelloToken == null || trelloToken.isBlank()
-                || trelloSecret == null || trelloSecret.isBlank()) {
-            log.warn("Trello tracker skipped: TRELLO_API, TRELLO_TOKEN, or TRELLO_SECRET environment variables are not set");
+        if (trelloKey == null || trelloKey.isBlank()) {
+            log.warn("Trello tracker skipped: TRELLO_API (app key) is not set");
             return 0;
         }
+        if (!cipher.isConfigured()) {
+            log.warn("Trello tracker skipped: app.security.token-encryption-key is not set");
+            return 0;
+        }
+
+        List<ManagerRef> managers = TenantContext.callAsRoot(connectionService::findConnectedManagers);
+        if (managers.isEmpty()) {
+            log.info("No managers have connected Trello. Skipping sync.");
+            return 0;
+        }
+
+        int totalSaved = 0;
+        for (ManagerRef ref : managers) {
+            try {
+                totalSaved += TenantContext.callAs(ref.organizationId(),
+                        () -> txTemplate.execute(status -> syncManager(ref.managerId())));
+            } catch (Exception e) {
+                log.error("Failed to sync Trello for manager {} (org {})",
+                        ref.managerId(), ref.organizationId(), e);
+            }
+        }
+
+        log.info("Finished Trello activity sync. Total activities saved: {}", totalSaved);
+        return totalSaved;
+    }
+
+    /** Runs inside a transaction already scoped to the manager's org (tenant filtering applies). */
+    private int syncManager(Long managerId) {
+        Manager manager = managerRepo.findById(managerId).orElse(null);
+        if (manager == null || manager.getTrelloToken() == null) return 0;
+
+        Set<TrelloBoardRef> boards = manager.getTrelloBoards();
+        if (boards.isEmpty()) return 0;
 
         List<Employee> employees = employeeRepo.findAllByActiveTrueOrderByNameAsc();
         Map<String, Employee> usernameToEmployee = new HashMap<>();
@@ -103,19 +157,25 @@ public class TrelloTrackerService {
                 usernameToEmployee.put(emp.getTrelloUsername().toLowerCase(Locale.ROOT).trim(), emp);
             }
         }
-
         if (usernameToEmployee.isEmpty()) {
-            log.info("No active employees with trello_username configured. Skipping sync.");
             return 0;
         }
 
-        String boardId = fetchBoardId(trelloBoardName);
-        if (boardId == null) {
-            log.warn("Trello board not found with name: {}", trelloBoardName);
-            return 0;
+        String token = cipher.decrypt(manager.getTrelloToken());
+        int saved = 0;
+        for (TrelloBoardRef board : boards) {
+            saved += syncBoard(board.getBoardId(), board.getBoardName(), token, usernameToEmployee);
         }
+        return saved;
+    }
 
-        log.info("Syncing Trello activities for board: {}, tracking {} mapped employees", trelloBoardName, usernameToEmployee.size());
+    // ponytail: within an org, existsByActivityId dedupes across managers who track the same
+    // board. Two *different* orgs tracking the same board would collide on the global unique
+    // activity_id — rare (separate tenants sharing one Trello board); make activity_id unique
+    // per-org if that ever happens.
+    private int syncBoard(String boardId, String boardName, String token,
+                          Map<String, Employee> usernameToEmployee) {
+        if (boardId == null || boardId.isBlank()) return 0;
 
         int totalSaved = 0;
         int page = 1;
@@ -125,7 +185,7 @@ public class TrelloTrackerService {
 
         while (page <= 10 && !caughtUp) {
             try {
-                List<JsonNode> actions = fetchActionsPage(boardId, before);
+                List<JsonNode> actions = fetchActionsPage(boardId, before, token);
                 if (actions == null || actions.isEmpty()) {
                     break;
                 }
@@ -154,7 +214,7 @@ public class TrelloTrackerService {
                     Employee employee = usernameToEmployee.get(actor);
                     if (employee == null) continue;
 
-                    TrelloActivity parsed = parseAction(action, employee, trelloBoardName);
+                    TrelloActivity parsed = parseAction(action, employee, boardName);
                     if (parsed != null && !activityRepo.existsByActivityId(parsed.getActivityId())) {
                         activitiesToSave.add(parsed);
                     }
@@ -163,55 +223,22 @@ public class TrelloTrackerService {
                 if (!activitiesToSave.isEmpty()) {
                     activityRepo.saveAll(activitiesToSave);
                     totalSaved += activitiesToSave.size();
-                    log.info("Saved {} new Trello activities from page {}", activitiesToSave.size(), page);
+                    log.info("Saved {} new Trello activities from board {} page {}",
+                            activitiesToSave.size(), boardName, page);
                 }
 
                 before = actions.get(actions.size() - 1).path("id").asText(null);
                 if (before == null) break;
                 page++;
             } catch (Exception e) {
-                log.error("Failed to sync Trello actions on page " + page, e);
+                log.error("Failed to sync Trello actions for board " + boardName + " on page " + page, e);
                 break;
             }
         }
-
-        log.info("Finished Trello activity sync. Total activities saved: {}", totalSaved);
         return totalSaved;
     }
 
-    private String fetchBoardId(String boardName) {
-        try {
-            String url = "https://api.trello.com/1/members/me/boards?fields=name&key="
-                    + encode(trelloKey) + "&token=" + encode(trelloToken);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Accept", "application/json")
-                    .header("User-Agent", "AfroDebab-CMS-API")
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                log.error("Trello boards API returned non-200 status: {} - {}", response.statusCode(), response.body());
-                return null;
-            }
-
-            JsonNode root = objectMapper.readTree(response.body());
-            if (root.isArray()) {
-                for (JsonNode board : root) {
-                    String name = board.path("name").asText("");
-                    if (name.equalsIgnoreCase(boardName)) {
-                        return board.path("id").asText(null);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("Failed to fetch Trello boards list", e);
-        }
-        return null;
-    }
-
-    private List<JsonNode> fetchActionsPage(String boardId, String before) throws Exception {
+    private List<JsonNode> fetchActionsPage(String boardId, String before, String token) throws Exception {
         String filter = String.join(",", ACTION_FILTERS);
         StringBuilder url = new StringBuilder("https://api.trello.com/1/boards/")
                 .append(encode(boardId))
@@ -219,7 +246,7 @@ public class TrelloTrackerService {
                 .append(encode(filter))
                 .append("&limit=200")
                 .append("&key=").append(encode(trelloKey))
-                .append("&token=").append(encode(trelloToken));
+                .append("&token=").append(encode(token));
         if (before != null) {
             url.append("&before=").append(encode(before));
         }

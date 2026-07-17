@@ -16,5 +16,11 @@ public record OrgCreateRequest(
         String slug,
         @NotBlank(message = "manager name is required") String managerName,
         @Email(message = "manager email must be valid") @NotBlank(message = "manager email is required") String managerEmail,
+        // Optional profile seeds (e.g. carried over from a signup request); the manager can edit later.
+        String phone,
+        String country,
+        String businessType,
+        String websiteUrl,
+        String companyEmail,
         Long requestId
 ) {}

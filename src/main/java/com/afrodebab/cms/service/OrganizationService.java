@@ -1,11 +1,13 @@
 package com.afrodebab.cms.service;
 
 import com.afrodebab.cms.dto.OrgCreateRequest;
+import com.afrodebab.cms.dto.OrgProfileUpdateRequest;
 import com.afrodebab.cms.dto.OrgResponse;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.Organization;
+import com.afrodebab.cms.jpa.entity.SignupRequest;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.OrganizationRepository;
 import com.afrodebab.cms.tenant.TenantContext;
@@ -63,11 +65,19 @@ public class OrganizationService {
             throw new BadRequestException("A manager with this email already exists");
         }
 
+        // Seed the profile from the create request, backfilling from the linked signup request.
+        SignupRequest lead = signupService.find(req.requestId()).orElse(null);
         Organization org = orgRepo.save(Organization.builder()
                 .name(req.name().trim())
                 .slug(slug)
                 .status("ACTIVE")
                 .plan("FREE")
+                .phone(firstNonBlank(req.phone(), lead != null ? lead.getPhone() : null))
+                .country(trimToNull(req.country()))
+                .businessType(trimToNull(req.businessType()))
+                .industry(lead != null ? lead.getIndustry() : null)
+                .websiteUrl(firstNonBlank(req.websiteUrl(), lead != null ? lead.getWebsiteUrl() : null))
+                .companyEmail(firstNonBlank(req.companyEmail(), lead != null ? lead.getEmail() : null))
                 .build());
 
         // Password is generated server-side and emailed to the manager (never chosen by the admin).
@@ -96,6 +106,72 @@ public class OrganizationService {
         }
 
         return OrgResponse.from(org);
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a.trim();
+        if (b != null && !b.isBlank()) return b.trim();
+        return null;
+    }
+
+    // --- Manager-facing company profile (operates on the caller's own org via TenantContext) ---
+
+    /** The organization the current manager belongs to (from the tenant already in scope). */
+    @Transactional(readOnly = true)
+    public OrgResponse getMyOrg() {
+        return OrgResponse.from(currentOrg());
+    }
+
+    @Transactional
+    public OrgResponse updateMyOrg(OrgProfileUpdateRequest req) {
+        Organization org = currentOrg();
+        org.setName(req.name().trim());
+        org.setTagline(trimToNull(req.tagline()));
+        org.setDescription(trimToNull(req.description()));
+        org.setLogoUrl(trimToNull(req.logoUrl()));
+        org.setCoverImageUrl(trimToNull(req.coverImageUrl()));
+        org.setBusinessType(trimToNull(req.businessType()));
+        org.setIndustry(trimToNull(req.industry()));
+        org.setCompanySize(trimToNull(req.companySize()));
+        org.setFoundedYear(req.foundedYear());
+        org.setPhone(trimToNull(req.phone()));
+        org.setCompanyEmail(trimToNull(req.companyEmail()));
+        org.setWebsiteUrl(trimToNull(req.websiteUrl()));
+        org.setAddressLine(trimToNull(req.addressLine()));
+        org.setCity(trimToNull(req.city()));
+        org.setCountry(trimToNull(req.country()));
+        org.setLinkedinUrl(trimToNull(req.linkedinUrl()));
+        org.setTwitterUrl(trimToNull(req.twitterUrl()));
+        org.setFacebookUrl(trimToNull(req.facebookUrl()));
+        org.setInstagramUrl(trimToNull(req.instagramUrl()));
+        return OrgResponse.from(orgRepo.save(org));
+    }
+
+    /** Persist a freshly uploaded logo URL on the current manager's org. */
+    @Transactional
+    public OrgResponse setLogoUrl(String url) {
+        Organization org = currentOrg();
+        org.setLogoUrl(url);
+        return OrgResponse.from(orgRepo.save(org));
+    }
+
+    /** Persist a freshly uploaded cover image URL on the current manager's org. */
+    @Transactional
+    public OrgResponse setCoverImageUrl(String url) {
+        Organization org = currentOrg();
+        org.setCoverImageUrl(url);
+        return OrgResponse.from(orgRepo.save(org));
+    }
+
+    private Organization currentOrg() {
+        Long orgId = TenantContext.get();
+        if (orgId == null) throw new NotFoundException("Organization not found");
+        return orgRepo.findById(orgId)
+                .orElseThrow(() -> new NotFoundException("Organization not found"));
+    }
+
+    private static String trimToNull(String s) {
+        return (s != null && !s.isBlank()) ? s.trim() : null;
     }
 
     private String generatePassword() {

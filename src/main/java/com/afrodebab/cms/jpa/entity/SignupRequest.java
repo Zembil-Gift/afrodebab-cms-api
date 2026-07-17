@@ -37,6 +37,11 @@ public class SignupRequest {
     @Column(columnDefinition = "TEXT")
     private String message;
 
+    // Optional lead details from the public signup form, carried into the org on approval.
+    @Column private String phone;
+    @Column private String industry;
+    @Column(name = "website_url")   private String websiteUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.PENDING;

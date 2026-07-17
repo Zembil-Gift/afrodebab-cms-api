@@ -40,12 +40,19 @@ public class SignupService {
                 .companyName(req.companyName().trim())
                 .contactName(req.contactName().trim())
                 .email(req.email().trim().toLowerCase(Locale.ROOT))
-                .message(req.message() != null && !req.message().isBlank() ? req.message().trim() : null)
+                .phone(trimToNull(req.phone()))
+                .industry(trimToNull(req.industry()))
+                .websiteUrl(trimToNull(req.websiteUrl()))
+                .message(trimToNull(req.message()))
                 .status(SignupRequest.Status.PENDING)
                 .build());
 
         notifyPlatformAdmins(saved);
         return SignupRequestResponse.from(saved);
+    }
+
+    private static String trimToNull(String s) {
+        return (s != null && !s.isBlank()) ? s.trim() : null;
     }
 
     /** Best-effort: a failed notification email must not fail the prospect's submission. */
@@ -83,6 +90,12 @@ public class SignupService {
         }
         request.setStatus(SignupRequest.Status.REJECTED);
         return SignupRequestResponse.from(signupRepo.save(request));
+    }
+
+    /** The raw signup request, if any — used to seed a newly provisioned org's profile. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<SignupRequest> find(Long id) {
+        return id == null ? java.util.Optional.empty() : signupRepo.findById(id);
     }
 
     /** Marks the request APPROVED after its organization has been provisioned. */
