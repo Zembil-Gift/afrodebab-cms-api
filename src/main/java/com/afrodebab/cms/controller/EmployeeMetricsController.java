@@ -56,13 +56,19 @@ public class EmployeeMetricsController {
     }
 
     @GetMapping("/peer-reviews/periods")
-    public List<PeerReviewPeriodStatusResponse> initiatedPeriods(Authentication authentication) {
-        return peerReviewService.listInitiatedPeriodsWithSubmissionStatus(authentication.getName());
+    public List<PeerReviewPeriodStatusResponse> initiatedPeriods(
+            Authentication authentication,
+            @RequestParam(required = false, defaultValue = "false") boolean reviewedOnly
+    ) {
+        return peerReviewService.listInitiatedPeriodsWithSubmissionStatus(authentication.getName(), reviewedOnly);
     }
 
     @GetMapping("/peer-reviews/available-employees")
-    public List<PeerReviewAvailableEmployeeResponse> availableEmployees(Authentication authentication) {
-        return peerReviewService.listAvailableEmployeesForEmployee(authentication.getName());
+    public List<PeerReviewAvailableEmployeeResponse> availableEmployees(
+            Authentication authentication,
+            @RequestParam(required = false) Long periodId
+    ) {
+        return peerReviewService.listAvailableEmployeesForEmployee(authentication.getName(), periodId);
     }
 
     @GetMapping("/peer-reviews/periods/{periodId}/results")
@@ -71,6 +77,14 @@ public class EmployeeMetricsController {
             @PathVariable Long periodId
     ) {
         return peerReviewService.getSelfPeriodResults(authentication.getName(), periodId);
+    }
+
+    @GetMapping("/peer-reviews/periods/{periodId}/comments")
+    public List<String> ownPeerReviewComments(
+            Authentication authentication,
+            @PathVariable Long periodId
+    ) {
+        return peerReviewService.getSelfPeriodComments(authentication.getName(), periodId);
     }
 
     @PostMapping("/peer-reviews")

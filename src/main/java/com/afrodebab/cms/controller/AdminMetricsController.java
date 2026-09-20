@@ -148,6 +148,14 @@ public class AdminMetricsController {
         return peerReviewService.getPeriodResults(periodId);
     }
 
+    @GetMapping("/peer-reviews/periods/{periodId}/comments/{employeeId}")
+    public List<String> employeePeerReviewComments(
+            @PathVariable Long periodId,
+            @PathVariable Long employeeId
+    ) {
+        return peerReviewService.getEmployeePeriodComments(periodId, employeeId);
+    }
+
     @GetMapping("/peer-reviews/available-employees")
     public List<PeerReviewAvailableEmployeeResponse> availableEmployees(Authentication authentication) {
         String adminEmail = authentication != null ? authentication.getName() : null;

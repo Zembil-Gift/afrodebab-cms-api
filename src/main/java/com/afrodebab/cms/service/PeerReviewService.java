@@ -90,6 +90,12 @@ public class PeerReviewService {
             throw new BadRequestException("One or more principleIds are invalid");
         }
 
+        String trimmedOverallComment = request.overallComment() != null ? request.overallComment().trim() : null;
+        if (trimmedOverallComment != null && trimmedOverallComment.isEmpty()) {
+            trimmedOverallComment = null;
+        }
+
+        boolean overallCommentAttached = false;
         Map<Long, PeerReview> savedByPrincipleId = new HashMap<>();
         for (PeerReviewRatingInput ratingInput : request.ratings()) {
             var existing = peerReviewRepository.findByReviewerIdAndRevieweeIdAndPrincipleIdAndPeriodStartAndPeriodEnd(
@@ -112,7 +118,14 @@ public class PeerReviewService {
             review.setPeriodEnd(request.periodEnd());
             review.setPrinciple(principleMap.get(ratingInput.principleId()));
             review.setRating(ratingInput.rating());
-            review.setComment(ratingInput.comment());
+            if (ratingInput.comment() != null && !ratingInput.comment().isBlank()) {
+                review.setComment(ratingInput.comment().trim());
+            } else if (!overallCommentAttached && trimmedOverallComment != null) {
+                review.setComment(trimmedOverallComment);
+                overallCommentAttached = true;
+            } else {
+                review.setComment(null);
+            }
 
             savedByPrincipleId.put(ratingInput.principleId(), peerReviewRepository.save(review));
         }
@@ -153,6 +166,11 @@ public class PeerReviewService {
 
     @Transactional(readOnly = true)
     public List<PeerReviewPeriodStatusResponse> listInitiatedPeriodsWithSubmissionStatus(String employeeEmail) {
+        return listInitiatedPeriodsWithSubmissionStatus(employeeEmail, false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PeerReviewPeriodStatusResponse> listInitiatedPeriodsWithSubmissionStatus(String employeeEmail, boolean reviewedOnly) {
         Employee employee = employeeRepository.findByEmailIgnoreCase(employeeEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
 
@@ -162,13 +180,16 @@ public class PeerReviewService {
         }
 
         long activePrincipleCount = leadershipPrincipleRepository.countByActiveTrue();
-        List<PeerReview> reviews = peerReviewRepository.findAllByReviewerId(employee.getId());
+        List<PeerReview> submittedReviews = peerReviewRepository.findAllByReviewerId(employee.getId());
+        List<PeerReview> receivedReviews = peerReviewRepository.findAllByRevieweeId(employee.getId());
+
         Set<PeriodKey> periodKeys = periods.stream()
                 .map(period -> new PeriodKey(period.getPeriodStart(), period.getPeriodEnd()))
                 .collect(Collectors.toSet());
 
+        // Track submissions made by this employee as a reviewer
         Map<PeriodKey, Map<Long, Set<Long>>> revieweePrinciplesByPeriod = new HashMap<>();
-        for (PeerReview review : reviews) {
+        for (PeerReview review : submittedReviews) {
             PeriodKey key = new PeriodKey(review.getPeriodStart(), review.getPeriodEnd());
             if (!periodKeys.contains(key)) {
                 continue;
@@ -177,6 +198,21 @@ public class PeerReviewService {
                     .computeIfAbsent(key, ignored -> new HashMap<>())
                     .computeIfAbsent(review.getReviewee().getId(), ignored -> new HashSet<>())
                     .add(review.getPrinciple().getId());
+        }
+
+        // Track reviews received by this employee from other peers
+        Map<PeriodKey, Set<Long>> reviewersByPeriod = new HashMap<>();
+        for (PeerReview review : receivedReviews) {
+            if (review.getRating() == null) {
+                continue;
+            }
+            PeriodKey key = new PeriodKey(review.getPeriodStart(), review.getPeriodEnd());
+            if (!periodKeys.contains(key)) {
+                continue;
+            }
+            reviewersByPeriod
+                    .computeIfAbsent(key, ignored -> new HashSet<>())
+                    .add(review.getReviewer().getId());
         }
 
         return periods.stream()
@@ -190,14 +226,21 @@ public class PeerReviewService {
                                     .anyMatch(principles -> principles.size() >= activePrincipleCount);
                         }
                     }
+                    Set<Long> reviewerSet = reviewersByPeriod.get(key);
+                    int reviewsReceived = reviewerSet != null ? reviewerSet.size() : 0;
+                    boolean reviewed = reviewsReceived > 0;
+
                     return new PeerReviewPeriodStatusResponse(
                             period.getId(),
                             period.getName(),
                             period.getPeriodStart(),
                             period.getPeriodEnd(),
-                            submitted
+                            submitted,
+                            reviewed,
+                            reviewsReceived
                     );
                 })
+                .filter(res -> !reviewedOnly || res.reviewed())
                 .toList();
     }
 
@@ -215,7 +258,7 @@ public class PeerReviewService {
 
         List<Employee> employees = resolveEmployeesForAdmin(reviews);
         List<PeerReviewEmployeeResultsResponse> results = employees.stream()
-                .map(employee -> toEmployeeResults(employee, aggregates, listActivePrincipleEntities()))
+                .map(employee -> toEmployeeResults(employee, aggregates, listActivePrincipleEntities(), reviews))
                 .toList();
 
         return new PeerReviewPeriodResultsResponse(
@@ -243,7 +286,7 @@ public class PeerReviewService {
         );
         Map<Long, EmployeeAggregate> aggregates = buildAggregates(reviews);
 
-        PeerReviewEmployeeResultsResponse employeeResults = toEmployeeResults(employee, aggregates, listActivePrincipleEntities());
+        PeerReviewEmployeeResultsResponse employeeResults = toEmployeeResults(employee, aggregates, listActivePrincipleEntities(), reviews);
 
         return new PeerReviewSelfResultsResponse(
                 period.getId(),
@@ -256,11 +299,28 @@ public class PeerReviewService {
 
     @Transactional(readOnly = true)
     public List<PeerReviewAvailableEmployeeResponse> listAvailableEmployeesForEmployee(String employeeEmail) {
+        return listAvailableEmployeesForEmployee(employeeEmail, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PeerReviewAvailableEmployeeResponse> listAvailableEmployeesForEmployee(String employeeEmail, Long periodId) {
         Employee employee = employeeRepository.findByEmailIgnoreCase(employeeEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
 
-        return employeeRepository.findAllByActiveTrueAndIdNotOrderByNameAsc(employee.getId())
-                .stream()
+        List<Employee> employees;
+        if (periodId != null) {
+            PeerReviewPeriod period = peerReviewPeriodRepository.findById(periodId)
+                    .orElseThrow(() -> new NotFoundException("Peer review period not found"));
+            employees = employeeRepository.findUnreviewedEmployees(
+                    employee.getId(),
+                    period.getPeriodStart(),
+                    period.getPeriodEnd()
+            );
+        } else {
+            employees = employeeRepository.findAllByActiveTrueAndIdNotOrderByNameAsc(employee.getId());
+        }
+
+        return employees.stream()
                 .map(this::toAvailableEmployeeResponse)
                 .toList();
     }
@@ -465,14 +525,61 @@ public class PeerReviewService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<String> getSelfPeriodComments(String employeeEmail, Long periodId) {
+        PeerReviewPeriod period = peerReviewPeriodRepository.findById(periodId)
+                .orElseThrow(() -> new NotFoundException("Peer review period not found"));
+        validatePeriod(period.getPeriodStart(), period.getPeriodEnd());
+
+        Employee employee = employeeRepository.findByEmailIgnoreCase(employeeEmail)
+                .orElseThrow(() -> new NotFoundException("Employee not found"));
+
+        return peerReviewRepository.findAllByRevieweeIdAndPeriodStartAndPeriodEndOrderByCreatedAtDesc(
+                        employee.getId(),
+                        period.getPeriodStart(),
+                        period.getPeriodEnd()
+                )
+                .stream()
+                .map(PeerReview::getComment)
+                .filter(c -> c != null && !c.isBlank())
+                .map(String::trim)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getEmployeePeriodComments(Long periodId, Long employeeId) {
+        PeerReviewPeriod period = peerReviewPeriodRepository.findById(periodId)
+                .orElseThrow(() -> new NotFoundException("Peer review period not found"));
+        validatePeriod(period.getPeriodStart(), period.getPeriodEnd());
+
+        return peerReviewRepository.findAllByRevieweeIdAndPeriodStartAndPeriodEndOrderByCreatedAtDesc(
+                        employeeId,
+                        period.getPeriodStart(),
+                        period.getPeriodEnd()
+                )
+                .stream()
+                .map(PeerReview::getComment)
+                .filter(c -> c != null && !c.isBlank())
+                .map(String::trim)
+                .toList();
+    }
+
     private PeerReviewEmployeeResultsResponse toEmployeeResults(Employee employee,
                                                                 Map<Long, EmployeeAggregate> aggregates,
-                                                                List<LeadershipPrinciple> principles) {
+                                                                List<LeadershipPrinciple> principles,
+                                                                List<PeerReview> reviews) {
         EmployeeAggregate aggregate = aggregates.get(employee.getId());
         BigDecimal leadershipScore = computeLeadershipScore(aggregate);
 
         List<PeerReviewPrincipleAverageResponse> averages = principles.stream()
                 .map(principle -> toPrincipleAverage(principle, aggregate))
+                .toList();
+
+        List<String> comments = reviews == null ? List.of() : reviews.stream()
+                .filter(r -> r.getReviewee().getId().equals(employee.getId()))
+                .map(PeerReview::getComment)
+                .filter(c -> c != null && !c.isBlank())
+                .map(String::trim)
                 .toList();
 
         return new PeerReviewEmployeeResultsResponse(
@@ -482,7 +589,8 @@ public class PeerReviewService {
                 employee.getRole(),
                 employee.getEmploymentType(),
                 leadershipScore,
-                averages
+                averages,
+                comments
         );
     }
 
