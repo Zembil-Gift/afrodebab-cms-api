@@ -3,7 +3,9 @@ package com.afrodebab.cms.service;
 import com.afrodebab.cms.dto.GitHubConnectionResponse;
 import com.afrodebab.cms.dto.GitHubOrgDto;
 import com.afrodebab.cms.jpa.entity.GitHubOrgRef;
+import com.afrodebab.cms.jpa.entity.GitHubOrgSubOrg;
 import com.afrodebab.cms.jpa.entity.Manager;
+import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.security.TokenCipher;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -35,6 +37,7 @@ public class ManagerGitHubConnectionService {
 
     private final ManagerRepository managerRepo;
     private final TokenCipher cipher;
+    private final SubOrganizationService subOrganizationService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -46,9 +49,11 @@ public class ManagerGitHubConnectionService {
 
     public ManagerGitHubConnectionService(ManagerRepository managerRepo,
                                           TokenCipher cipher,
+                                          SubOrganizationService subOrganizationService,
                                           ObjectMapper objectMapper) {
         this.managerRepo = managerRepo;
         this.cipher = cipher;
+        this.subOrganizationService = subOrganizationService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -91,10 +96,19 @@ public class ManagerGitHubConnectionService {
     public GitHubConnectionResponse saveOrgs(List<GitHubOrgDto> orgs) {
         Manager manager = currentManager();
         requireToken(manager);
+        // Vice managers always credit their own branch (applied at sync), so only managers pick.
+        boolean pickBranches = manager.getRole() != Manager.ManagerRole.VICE_MANAGER;
         manager.getGithubOrgs().clear();
+        manager.getGithubOrgSubOrgs().clear();
         for (GitHubOrgDto o : orgs) {
             if (o.login() == null || o.login().isBlank()) continue;
             manager.getGithubOrgs().add(new GitHubOrgRef(o.login(), o.name()));
+            if (pickBranches && o.subOrganizationIds() != null) {
+                for (Long subOrgId : o.subOrganizationIds()) {
+                    subOrganizationService.getEntityOrThrow(subOrgId); // must belong to this org
+                    manager.getGithubOrgSubOrgs().add(new GitHubOrgSubOrg(o.login(), subOrgId));
+                }
+            }
         }
         managerRepo.save(manager);
         return toResponse(manager);
@@ -105,6 +119,7 @@ public class ManagerGitHubConnectionService {
         Manager manager = currentManager();
         manager.setGithubToken(null);
         manager.getGithubOrgs().clear();
+        manager.getGithubOrgSubOrgs().clear();
         managerRepo.save(manager);
     }
 
@@ -131,9 +146,16 @@ public class ManagerGitHubConnectionService {
 
     private GitHubConnectionResponse toResponse(Manager manager) {
         List<GitHubOrgDto> orgs = manager.getGithubOrgs().stream()
-                .map(o -> new GitHubOrgDto(o.getOrgLogin(), o.getOrgName()))
+                .map(o -> new GitHubOrgDto(o.getOrgLogin(), o.getOrgName(), manager.getGithubOrgSubOrgs().stream()
+                        .filter(s -> s.getOrgLogin().equals(o.getOrgLogin()))
+                        .map(GitHubOrgSubOrg::getSubOrganizationId)
+                        .sorted()
+                        .toList()))
                 .toList();
-        return new GitHubConnectionResponse(manager.getGithubToken() != null, orgs);
+        boolean vice = manager.getRole() == Manager.ManagerRole.VICE_MANAGER;
+        SubOrganization branch = vice ? manager.getSubOrganization() : null;
+        return new GitHubConnectionResponse(manager.getGithubToken() != null, orgs,
+                branch == null ? null : branch.getId(), branch == null ? null : branch.getName(), vice);
     }
 
     private String exchangeCodeForToken(String code) {
@@ -178,7 +200,7 @@ public class ManagerGitHubConnectionService {
                 for (JsonNode o : root) {
                     String login = o.path("login").asText("");
                     String name = o.path("name").asText("");
-                    orgs.add(new GitHubOrgDto(login, name.isBlank() ? login : name));
+                    orgs.add(new GitHubOrgDto(login, name.isBlank() ? login : name, null));
                 }
             }
             return orgs;

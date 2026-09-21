@@ -62,6 +62,12 @@ public class Manager extends TenantEntity {
     @Builder.Default
     private Set<TrelloBoardRef> trelloBoards = new HashSet<>();
 
+    /** Per tracked board: the sub-organizations it credits (no rows for a board = all). */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "manager_trello_board_sub_orgs", joinColumns = @JoinColumn(name = "manager_id"))
+    @Builder.Default
+    private Set<TrelloBoardSubOrg> trelloBoardSubOrgs = new HashSet<>();
+
     /** This manager's personal GitHub OAuth token, encrypted at rest. Null until they connect. */
     @Column(name = "github_token", columnDefinition = "TEXT")
     private String githubToken;
@@ -71,6 +77,12 @@ public class Manager extends TenantEntity {
     @CollectionTable(name = "manager_github_orgs", joinColumns = @JoinColumn(name = "manager_id"))
     @Builder.Default
     private Set<GitHubOrgRef> githubOrgs = new HashSet<>();
+
+    /** Per tracked GitHub organization: the sub-organizations it credits (no rows = all). */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "manager_github_org_sub_orgs", joinColumns = @JoinColumn(name = "manager_id"))
+    @Builder.Default
+    private Set<GitHubOrgSubOrg> githubOrgSubOrgs = new HashSet<>();
 
     @Column(name = "last_login_at")
     private Instant lastLoginAt;

@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Tag(name = "Manager - Trello Connection")
 @RestController
-@RequestMapping("/manager/trello/connection")
+@RequestMapping({"/manager/trello/connection", "/vice-manager/trello/connection"})
 public class ManagerTrelloConnectionController {
 
     private final ManagerTrelloConnectionService service;

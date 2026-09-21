@@ -6,6 +6,7 @@ import com.afrodebab.cms.dto.TrelloReportResponse;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.Manager;
+import com.afrodebab.cms.jpa.entity.TrelloBoardSubOrg;
 import com.afrodebab.cms.jpa.entity.TrelloActivity;
 import com.afrodebab.cms.jpa.entity.TrelloBoardRef;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
@@ -18,6 +19,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -111,6 +113,20 @@ public class TrelloTrackerService {
      * that manager's org, so activity rows are attributed to the right tenant. Not itself
      * transactional — each org gets its own tenant-scoped session via {@link TransactionTemplate}.
      */
+    /**
+     * Syncs only the logged-in (vice) manager's own connection, in the tenant already set from
+     * their JWT. Used by vice managers, who must not trigger other branches' or orgs' syncs.
+     */
+    public int syncCurrentManager() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Long managerId = managerRepo.findByEmailIgnoreCase(email)
+                .map(Manager::getId)
+                .orElseThrow(() -> new NotFoundException("Manager not found"));
+        if (!cipher.isConfigured() || trelloKey == null || trelloKey.isBlank()) return 0;
+        Integer saved = txTemplate.execute(status -> syncManager(managerId));
+        return saved == null ? 0 : saved;
+    }
+
     public int syncActivities() {
         if (trelloKey == null || trelloKey.isBlank()) {
             log.warn("Trello tracker skipped: TRELLO_API (app key) is not set");
@@ -142,6 +158,19 @@ public class TrelloTrackerService {
         return totalSaved;
     }
 
+    /** Trello username → employee, limited to the given branches (empty = all branches). */
+    private static Map<String, Employee> byUsername(List<Employee> employees, Set<Long> branches) {
+        Map<String, Employee> byUsername = new HashMap<>();
+        for (Employee emp : employees) {
+            String username = emp.getTrelloUsername();
+            if (username == null || username.isBlank()) continue;
+            if (!branches.isEmpty() && (emp.getSubOrganization() == null
+                    || !branches.contains(emp.getSubOrganization().getId()))) continue;
+            byUsername.put(username.toLowerCase(Locale.ROOT).trim(), emp);
+        }
+        return byUsername;
+    }
+
     /** Runs inside a transaction already scoped to the manager's org (tenant filtering applies). */
     private int syncManager(Long managerId) {
         Manager manager = managerRepo.findById(managerId).orElse(null);
@@ -150,20 +179,24 @@ public class TrelloTrackerService {
         Set<TrelloBoardRef> boards = manager.getTrelloBoards();
         if (boards.isEmpty()) return 0;
 
+        // Vice managers always credit their own branch; a manager's boards each credit the
+        // branches ticked for them (none ticked = every branch).
+        Long viceBranch = manager.getRole() == Manager.ManagerRole.VICE_MANAGER && manager.getSubOrganization() != null
+                ? manager.getSubOrganization().getId() : null;
+        Map<String, Set<Long>> branchesByBoard = new HashMap<>();
+        for (TrelloBoardSubOrg scope : manager.getTrelloBoardSubOrgs()) {
+            branchesByBoard.computeIfAbsent(scope.getBoardId(), k -> new HashSet<>()).add(scope.getSubOrganizationId());
+        }
         List<Employee> employees = employeeRepo.findAllByActiveTrueOrderByNameAsc();
-        Map<String, Employee> usernameToEmployee = new HashMap<>();
-        for (Employee emp : employees) {
-            if (emp.getTrelloUsername() != null && !emp.getTrelloUsername().isBlank()) {
-                usernameToEmployee.put(emp.getTrelloUsername().toLowerCase(Locale.ROOT).trim(), emp);
-            }
-        }
-        if (usernameToEmployee.isEmpty()) {
-            return 0;
-        }
 
         String token = cipher.decrypt(manager.getTrelloToken());
         int saved = 0;
         for (TrelloBoardRef board : boards) {
+            Set<Long> branches = viceBranch != null
+                    ? Set.of(viceBranch)
+                    : branchesByBoard.getOrDefault(board.getBoardId(), Set.of());
+            Map<String, Employee> usernameToEmployee = byUsername(employees, branches);
+            if (usernameToEmployee.isEmpty()) continue;
             saved += syncBoard(board.getBoardId(), board.getBoardName(), token, usernameToEmployee);
         }
         return saved;

@@ -46,6 +46,16 @@ public class ViceManagerTrackerController {
         this.managerRepo = managerRepo;
     }
 
+    @PostMapping("/github/sync")
+    public Map<String, Object> syncGitHub() {
+        return Map.of("status", "success", "syncedCount", gitHubTrackerService.syncCurrentManager());
+    }
+
+    @PostMapping("/trello/sync")
+    public Map<String, Object> syncTrello() {
+        return Map.of("status", "success", "syncedCount", trelloTrackerService.syncCurrentManager());
+    }
+
     @GetMapping("/github/report/{employeeId}")
     public GitHubReportResponse getGitHubReport(Authentication auth, @PathVariable Long employeeId) {
         Long subOrgId = resolveSubOrgId(auth);

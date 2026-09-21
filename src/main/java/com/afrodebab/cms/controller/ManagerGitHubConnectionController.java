@@ -18,7 +18,7 @@ import java.util.List;
  */
 @Tag(name = "Manager - GitHub Connection")
 @RestController
-@RequestMapping("/manager/github/connection")
+@RequestMapping({"/manager/github/connection", "/vice-manager/github/connection"})
 public class ManagerGitHubConnectionController {
 
     private final ManagerGitHubConnectionService service;

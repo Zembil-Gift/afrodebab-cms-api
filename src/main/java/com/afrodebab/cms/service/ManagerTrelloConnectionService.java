@@ -3,7 +3,9 @@ package com.afrodebab.cms.service;
 import com.afrodebab.cms.dto.TrelloBoardDto;
 import com.afrodebab.cms.dto.TrelloConnectionResponse;
 import com.afrodebab.cms.jpa.entity.Manager;
+import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.entity.TrelloBoardRef;
+import com.afrodebab.cms.jpa.entity.TrelloBoardSubOrg;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.security.TokenCipher;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -35,6 +37,7 @@ public class ManagerTrelloConnectionService {
 
     private final ManagerRepository managerRepo;
     private final TokenCipher cipher;
+    private final SubOrganizationService subOrganizationService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
@@ -43,9 +46,11 @@ public class ManagerTrelloConnectionService {
 
     public ManagerTrelloConnectionService(ManagerRepository managerRepo,
                                           TokenCipher cipher,
+                                          SubOrganizationService subOrganizationService,
                                           ObjectMapper objectMapper) {
         this.managerRepo = managerRepo;
         this.cipher = cipher;
+        this.subOrganizationService = subOrganizationService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -87,10 +92,19 @@ public class ManagerTrelloConnectionService {
     public TrelloConnectionResponse saveBoards(List<TrelloBoardDto> boards) {
         Manager manager = currentManager();
         requireToken(manager);
+        // Vice managers always credit their own branch (applied at sync), so only managers pick.
+        boolean pickBranches = manager.getRole() != Manager.ManagerRole.VICE_MANAGER;
         manager.getTrelloBoards().clear();
+        manager.getTrelloBoardSubOrgs().clear();
         for (TrelloBoardDto b : boards) {
             if (b.id() == null || b.id().isBlank()) continue;
             manager.getTrelloBoards().add(new TrelloBoardRef(b.id(), b.name()));
+            if (pickBranches && b.subOrganizationIds() != null) {
+                for (Long subOrgId : b.subOrganizationIds()) {
+                    subOrganizationService.getEntityOrThrow(subOrgId); // must belong to this org
+                    manager.getTrelloBoardSubOrgs().add(new TrelloBoardSubOrg(b.id(), subOrgId));
+                }
+            }
         }
         managerRepo.save(manager);
         return toResponse(manager);
@@ -101,6 +115,7 @@ public class ManagerTrelloConnectionService {
         Manager manager = currentManager();
         manager.setTrelloToken(null);
         manager.getTrelloBoards().clear();
+        manager.getTrelloBoardSubOrgs().clear();
         managerRepo.save(manager);
     }
 
@@ -127,9 +142,16 @@ public class ManagerTrelloConnectionService {
 
     private TrelloConnectionResponse toResponse(Manager manager) {
         List<TrelloBoardDto> boards = manager.getTrelloBoards().stream()
-                .map(b -> new TrelloBoardDto(b.getBoardId(), b.getBoardName()))
+                .map(b -> new TrelloBoardDto(b.getBoardId(), b.getBoardName(), manager.getTrelloBoardSubOrgs().stream()
+                        .filter(s -> s.getBoardId().equals(b.getBoardId()))
+                        .map(TrelloBoardSubOrg::getSubOrganizationId)
+                        .sorted()
+                        .toList()))
                 .toList();
-        return new TrelloConnectionResponse(manager.getTrelloToken() != null, boards);
+        boolean vice = manager.getRole() == Manager.ManagerRole.VICE_MANAGER;
+        SubOrganization branch = vice ? manager.getSubOrganization() : null;
+        return new TrelloConnectionResponse(manager.getTrelloToken() != null, boards,
+                branch == null ? null : branch.getId(), branch == null ? null : branch.getName(), vice);
     }
 
     private boolean validateToken(String token) {
@@ -156,7 +178,7 @@ public class ManagerTrelloConnectionService {
             List<TrelloBoardDto> boards = new ArrayList<>();
             if (root.isArray()) {
                 for (JsonNode b : root) {
-                    boards.add(new TrelloBoardDto(b.path("id").asText(), b.path("name").asText("")));
+                    boards.add(new TrelloBoardDto(b.path("id").asText(), b.path("name").asText(""), null));
                 }
             }
             return boards;

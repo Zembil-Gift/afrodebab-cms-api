@@ -4,6 +4,7 @@ import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.GitHubActivity;
 import com.afrodebab.cms.jpa.entity.GitHubOrgRef;
 import com.afrodebab.cms.jpa.entity.Manager;
+import com.afrodebab.cms.jpa.entity.GitHubOrgSubOrg;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import com.afrodebab.cms.jpa.repository.GitHubActivityRepository;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
@@ -14,6 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -97,6 +99,20 @@ public class GitHubTrackerService {
      * that manager's org, so activity rows are attributed to the right tenant. Not itself
      * transactional — each org gets its own tenant-scoped session via {@link TransactionTemplate}.
      */
+    /**
+     * Syncs only the logged-in (vice) manager's own connection, in the tenant already set from
+     * their JWT. Used by vice managers, who must not trigger other branches' or orgs' syncs.
+     */
+    public int syncCurrentManager() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Long managerId = managerRepo.findByEmailIgnoreCase(email)
+                .map(Manager::getId)
+                .orElseThrow(() -> new NotFoundException("Manager not found"));
+        if (!cipher.isConfigured()) return 0;
+        Integer saved = txTemplate.execute(status -> syncManager(managerId));
+        return saved == null ? 0 : saved;
+    }
+
     public int syncActivities() {
         if (!cipher.isConfigured()) {
             log.warn("GitHub tracker skipped: app.security.token-encryption-key is not set");
@@ -124,6 +140,19 @@ public class GitHubTrackerService {
         return totalSaved;
     }
 
+    /** Github username → employee, limited to the given branches (empty = all branches). */
+    private static Map<String, Employee> byUsername(List<Employee> employees, Set<Long> branches) {
+        Map<String, Employee> byUsername = new HashMap<>();
+        for (Employee emp : employees) {
+            String username = emp.getGithubUsername();
+            if (username == null || username.isBlank()) continue;
+            if (!branches.isEmpty() && (emp.getSubOrganization() == null
+                    || !branches.contains(emp.getSubOrganization().getId()))) continue;
+            byUsername.put(username.toLowerCase(Locale.ROOT).trim(), emp);
+        }
+        return byUsername;
+    }
+
     /** Runs inside a transaction already scoped to the manager's org (tenant filtering applies). */
     private int syncManager(Long managerId) {
         Manager manager = managerRepo.findById(managerId).orElse(null);
@@ -132,20 +161,24 @@ public class GitHubTrackerService {
         Set<GitHubOrgRef> orgs = manager.getGithubOrgs();
         if (orgs.isEmpty()) return 0;
 
+        // Vice managers always credit their own branch; a manager's orgs each credit the
+        // branches ticked for them (none ticked = every branch).
+        Long viceBranch = manager.getRole() == Manager.ManagerRole.VICE_MANAGER && manager.getSubOrganization() != null
+                ? manager.getSubOrganization().getId() : null;
+        Map<String, Set<Long>> branchesByOrg = new HashMap<>();
+        for (GitHubOrgSubOrg scope : manager.getGithubOrgSubOrgs()) {
+            branchesByOrg.computeIfAbsent(scope.getOrgLogin(), k -> new HashSet<>()).add(scope.getSubOrganizationId());
+        }
         List<Employee> employees = employeeRepo.findAllByActiveTrueOrderByNameAsc();
-        Map<String, Employee> usernameToEmployee = new HashMap<>();
-        for (Employee emp : employees) {
-            if (emp.getGithubUsername() != null && !emp.getGithubUsername().isBlank()) {
-                usernameToEmployee.put(emp.getGithubUsername().toLowerCase(Locale.ROOT).trim(), emp);
-            }
-        }
-        if (usernameToEmployee.isEmpty()) {
-            return 0;
-        }
 
         String token = cipher.decrypt(manager.getGithubToken());
         int saved = 0;
         for (GitHubOrgRef org : orgs) {
+            Set<Long> branches = viceBranch != null
+                    ? Set.of(viceBranch)
+                    : branchesByOrg.getOrDefault(org.getOrgLogin(), Set.of());
+            Map<String, Employee> usernameToEmployee = byUsername(employees, branches);
+            if (usernameToEmployee.isEmpty()) continue;
             saved += syncOrg(org.getOrgLogin(), token, usernameToEmployee);
         }
         return saved;
