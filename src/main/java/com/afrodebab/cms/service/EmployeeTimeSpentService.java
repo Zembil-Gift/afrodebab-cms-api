@@ -6,6 +6,7 @@ import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.EmployeeAttendance;
 import com.afrodebab.cms.jpa.repository.EmployeeAttendanceRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
+import com.afrodebab.cms.util.EthiopianHolidays;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,7 +81,7 @@ public class EmployeeTimeSpentService {
     private EmployeeTimeSpentResponse buildDaily(Employee employee, LocalDate date) {
         List<EmployeeAttendance> rows = employeeAttendanceRepository
                 .findAllByEmployeeIdAndAttendanceDateBetweenOrderByAttendanceDateAsc(employee.getId(), date, date);
-        long workedMinutes = rows.isEmpty() ? 0L : calculateWorkedMinutes(rows.get(0));
+        long workedMinutes = creditHoliday(date, rows.isEmpty() ? 0L : calculateWorkedMinutes(rows.get(0)));
         long requiredMinutes = REQUIRED_MINUTES_PER_DAY;
         long remainingMinutes = Math.max(requiredMinutes - workedMinutes, 0L);
         BigDecimal completionPercent = toPercent(workedMinutes, requiredMinutes);
@@ -151,9 +152,7 @@ public class EmployeeTimeSpentService {
                 continue;
             }
             officeDaysCount++;
-            if (attendance != null) {
-                workedMinutes += calculateWorkedMinutes(attendance);
-            }
+            workedMinutes += creditHoliday(date, attendance == null ? 0L : calculateWorkedMinutes(attendance));
         }
 
         long requiredMinutes = officeDaysCount * REQUIRED_MINUTES_PER_DAY;
@@ -172,6 +171,11 @@ public class EmployeeTimeSpentService {
                 remainingMinutes,
                 completionPercent
         );
+    }
+
+    // Ethiopian public holidays count as a fully worked day.
+    private long creditHoliday(LocalDate date, long workedMinutes) {
+        return EthiopianHolidays.isHoliday(date) ? Math.max(workedMinutes, REQUIRED_MINUTES_PER_DAY) : workedMinutes;
     }
 
     private long calculateWorkedMinutes(EmployeeAttendance attendance) {

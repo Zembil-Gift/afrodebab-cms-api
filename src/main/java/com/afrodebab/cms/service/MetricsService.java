@@ -15,6 +15,7 @@ import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import com.afrodebab.cms.jpa.repository.PeerReviewRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import com.afrodebab.cms.util.EthiopianHolidays;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -204,7 +205,7 @@ public class MetricsService {
             }
 
             EmployeeAttendance row = byDate.get(date);
-            String finalStatus = extractFinalAttendanceStatus(row);
+            String finalStatus = EthiopianHolidays.isHoliday(date) ? "ON_TIME" : extractFinalAttendanceStatus(row);
             if ("APPROVED_LEAVE".equals(finalStatus)) {
                 continue;
             }

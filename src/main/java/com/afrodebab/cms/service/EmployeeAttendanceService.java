@@ -11,6 +11,7 @@ import com.afrodebab.cms.jpa.entity.EmployeeAttendance;
 import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.EmployeeAttendanceRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
+import com.afrodebab.cms.util.EthiopianHolidays;
 import com.afrodebab.cms.util.GeoUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -80,7 +81,7 @@ public class EmployeeAttendanceService {
                 req.clockOutAt(),
                 req.lunchBreakInAt(),
                 req.lunchBreakOutAt(),
-                null
+                holidayStatusOverride(req.date())
         ));
         attendance.setNotes(req.notes());
 
@@ -202,7 +203,7 @@ public class EmployeeAttendanceService {
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
                 attendance.getLunchBreakOutAt(),
-                null
+                holidayStatusOverride(today)
         ));
 
         employeeAttendanceRepo.save(attendance);
@@ -243,7 +244,7 @@ public class EmployeeAttendanceService {
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
                 attendance.getLunchBreakOutAt(),
-                null
+                holidayStatusOverride(today)
         ));
         employeeAttendanceRepo.save(attendance);
         return toResponse(attendance);
@@ -279,7 +280,7 @@ public class EmployeeAttendanceService {
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
                 attendance.getLunchBreakOutAt(),
-                null
+                holidayStatusOverride(today)
         ));
         employeeAttendanceRepo.save(attendance);
         return toResponse(attendance);
@@ -318,7 +319,7 @@ public class EmployeeAttendanceService {
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
                 attendance.getLunchBreakOutAt(),
-                null
+                holidayStatusOverride(today)
         ));
         employeeAttendanceRepo.save(attendance);
         return toResponse(attendance);
@@ -480,6 +481,11 @@ public class EmployeeAttendanceService {
         status.put("lunch", lunchStatus);
         status.put("final", finalStatus.name());
         return status;
+    }
+
+    // Ethiopian public holidays are always fully present, whatever was (or wasn't) clocked.
+    private EmployeeAttendance.AttendanceFinalStatus holidayStatusOverride(LocalDate date) {
+        return EthiopianHolidays.isHoliday(date) ? EmployeeAttendance.AttendanceFinalStatus.ON_TIME : null;
     }
 
     private void validateAttendanceAllowedForDate(Employee employee, LocalDate date) {
