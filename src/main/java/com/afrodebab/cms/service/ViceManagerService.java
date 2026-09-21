@@ -5,6 +5,7 @@ import com.afrodebab.cms.dto.ViceManagerResponse;
 import com.afrodebab.cms.dto.ViceManagerUpdateRequest;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
+import com.afrodebab.cms.jpa.entity.EmailNotification.NotificationType;
 import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class ViceManagerService {
@@ -34,7 +36,7 @@ public class ViceManagerService {
     private final EmployeeRepository employeeRepository;
     private final PlatformAdminRepository platformAdminRepository;
     private final PasswordEncoder passwordEncoder;
-    private final SendGridEmailService emailService;
+    private final EmailTemplateService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public ViceManagerService(ManagerRepository managerRepository,
@@ -42,7 +44,7 @@ public class ViceManagerService {
                               EmployeeRepository employeeRepository,
                               PlatformAdminRepository platformAdminRepository,
                               PasswordEncoder passwordEncoder,
-                              SendGridEmailService emailService) {
+                              EmailTemplateService emailService) {
         this.managerRepository = managerRepository;
         this.subOrganizationRepository = subOrganizationRepository;
         this.employeeRepository = employeeRepository;
@@ -103,7 +105,9 @@ public class ViceManagerService {
         Manager saved = managerRepository.save(viceManager);
 
         try {
-            emailService.sendViceManagerWelcomeEmail(normalizedEmail, name, subOrg.getName(), generatedPassword);
+            emailService.send(NotificationType.VICE_MANAGER_WELCOME, normalizedEmail, Map.of(
+                    "name", name, "email", normalizedEmail, "password", generatedPassword,
+                    "branch", subOrg.getName()), TenantContext.get());
         } catch (RuntimeException ex) {
             log.warn("Vice Manager {} created but welcome email failed: {}", normalizedEmail, ex.getMessage());
         }

@@ -9,10 +9,10 @@ import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.EmployeePayment;
+import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.EmployeePaymentRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -178,9 +178,13 @@ public class EmployeePaymentService {
                 .toList();
     }
 
-    @Scheduled(cron = "0 0 0 */3 * *", zone = "UTC")
+    /**
+     * Queues payroll reminders for the current organization. Run by {@link EmailScheduleService}
+     * every N days at the org's dispatch time. Managers hear about every due payment; vice
+     * managers only about their own branch's.
+     */
     @Transactional
-    public void runPaymentReminderCron() {
+    public void remindDuePayments() {
         generatePendingPaymentsForCurrentCycles();
         LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).plusDays(DUE_WINDOW_DAYS);
         List<EmployeePayment> dueUnreminded = employeePaymentRepo
@@ -193,13 +197,22 @@ public class EmployeePaymentService {
             return;
         }
 
-        List<Manager> activeAdmins = adminRepo.findAllByActiveTrue();
-        if (activeAdmins.isEmpty()) {
-            return;
+        boolean reminded = false;
+        for (Manager manager : adminRepo.findAllByActiveTrueAndRole(Manager.ManagerRole.MANAGER)) {
+            emailNotificationService.queueAdminPayrollReminderEmail(manager.getEmail(), manager.getName(), dueUnreminded.size());
+            reminded = true;
         }
-
-        for (Manager admin : activeAdmins) {
-            emailNotificationService.queueAdminPayrollReminderEmail(admin.getEmail(), admin.getName(), dueUnreminded.size());
+        for (Manager vice : adminRepo.findAllByActiveTrueAndRole(Manager.ManagerRole.VICE_MANAGER)) {
+            SubOrganization branch = vice.getSubOrganization();
+            if (branch == null) continue;
+            long branchDue = dueUnreminded.stream().filter(p -> inSubOrganization(p, branch.getId())).count();
+            if (branchDue == 0) continue;
+            emailNotificationService.queueViceManagerPayrollReminderEmail(
+                    vice.getEmail(), vice.getName(), branch.getName(), (int) branchDue);
+            reminded = true;
+        }
+        if (!reminded) {
+            return;
         }
 
         Instant now = Instant.now();

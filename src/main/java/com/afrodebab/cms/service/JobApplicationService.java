@@ -11,7 +11,9 @@ import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.Job;
 import com.afrodebab.cms.jpa.entity.JobApplication;
+import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.repository.JobApplicationRepository;
+import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,19 +33,22 @@ public class JobApplicationService {
     private final EmployeeService employeeService;
     private final EmailNotificationService emailNotificationService;
     private final AiOverviewService aiOverviewService;
+    private final ManagerRepository managerRepo;
 
     public JobApplicationService(JobApplicationRepository repo,
                                  JobService jobService,
                                  CloudflareR2Service cloudflareR2Service,
                                  EmployeeService employeeService,
                                  EmailNotificationService emailNotificationService,
-                                 AiOverviewService aiOverviewService) {
+                                 AiOverviewService aiOverviewService,
+                                 ManagerRepository managerRepo) {
         this.repo = repo;
         this.jobService = jobService;
         this.cloudflareR2Service = cloudflareR2Service;
         this.employeeService = employeeService;
         this.emailNotificationService = emailNotificationService;
         this.aiOverviewService = aiOverviewService;
+        this.managerRepo = managerRepo;
     }
 
     @Transactional
@@ -221,6 +226,9 @@ public class JobApplicationService {
 
         repo.save(app);
         aiOverviewService.queue(app);
+        managerRepo.findAllByActiveTrueAndRole(Manager.ManagerRole.MANAGER)
+                .forEach(manager -> emailNotificationService.queueManagerNewJobApplicationEmail(
+                        manager.getEmail(), manager.getName(), app.getFullName(), app.getEmail(), job.getTitle()));
         return app;
     }
 

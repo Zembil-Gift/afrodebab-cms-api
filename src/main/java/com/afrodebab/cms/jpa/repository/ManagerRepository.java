@@ -13,6 +13,8 @@ public interface ManagerRepository extends JpaRepository<Manager, Long> {
     List<Manager> findAllByActiveTrueAndTrelloTokenIsNotNull();
     List<Manager> findAllByActiveTrueAndGithubTokenIsNotNull();
     List<Manager> findAllByRole(Manager.ManagerRole role);
+    List<Manager> findAllByActiveTrueAndRole(Manager.ManagerRole role);
+    List<Manager> findAllByActiveTrueAndRoleAndSubOrganizationId(Manager.ManagerRole role, Long subOrganizationId);
     long countBySubOrganizationIdAndRole(Long subOrganizationId, Manager.ManagerRole role);
     Optional<Manager> findByIdAndRole(Long id, Manager.ManagerRole role);
 

@@ -4,6 +4,7 @@ import com.afrodebab.cms.dto.SignupRequestResponse;
 import com.afrodebab.cms.dto.SignupSubmitRequest;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
+import com.afrodebab.cms.jpa.entity.EmailNotification.NotificationType;
 import com.afrodebab.cms.jpa.entity.PlatformAdmin;
 import com.afrodebab.cms.jpa.entity.SignupRequest;
 import com.afrodebab.cms.jpa.repository.PlatformAdminRepository;
@@ -15,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 /** Handles public "Start free" submissions and their platform-admin review lifecycle. */
 @Service
@@ -24,11 +27,11 @@ public class SignupService {
 
     private final SignupRequestRepository signupRepo;
     private final PlatformAdminRepository platformAdminRepo;
-    private final SendGridEmailService emailService;
+    private final EmailTemplateService emailService;
 
     public SignupService(SignupRequestRepository signupRepo,
                          PlatformAdminRepository platformAdminRepo,
-                         SendGridEmailService emailService) {
+                         EmailTemplateService emailService) {
         this.signupRepo = signupRepo;
         this.platformAdminRepo = platformAdminRepo;
         this.emailService = emailService;
@@ -60,13 +63,12 @@ public class SignupService {
         List<PlatformAdmin> admins = platformAdminRepo.findAllByActiveTrue();
         for (PlatformAdmin admin : admins) {
             try {
-                emailService.sendPlatformSignupRequestEmail(
-                        admin.getEmail(),
-                        admin.getName(),
-                        request.getCompanyName(),
-                        request.getContactName(),
-                        request.getEmail(),
-                        request.getMessage());
+                emailService.send(NotificationType.PLATFORM_SIGNUP_REQUEST, admin.getEmail(), Map.of(
+                        "name", admin.getName(),
+                        "companyName", request.getCompanyName(),
+                        "contactName", request.getContactName(),
+                        "contactEmail", request.getEmail(),
+                        "message", Objects.requireNonNullElse(request.getMessage(), "")), null);
             } catch (RuntimeException ex) {
                 log.warn("Failed to notify platform admin {} of signup request {}: {}",
                         admin.getEmail(), request.getId(), ex.getMessage());

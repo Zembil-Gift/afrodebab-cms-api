@@ -4,61 +4,86 @@ import com.afrodebab.cms.dto.EmailNotificationResponse;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.EmailNotification;
+import com.afrodebab.cms.jpa.entity.EmailNotification.NotificationType;
 import com.afrodebab.cms.jpa.repository.EmailNotificationRepository;
 import com.afrodebab.cms.security.TokenCipher;
+import com.afrodebab.cms.tenant.TenantContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class EmailNotificationService {
     private static final int MAX_ATTEMPTS = 3;
 
     private final EmailNotificationRepository emailNotificationRepo;
-    private final SendGridEmailService sendGridEmailService;
+    private final EmailTemplateService emailTemplateService;
     private final ObjectMapper objectMapper;
     private final TokenCipher tokenCipher;
 
     // Marks an encrypted password in a queued payload; sent payloads keep only REDACTED.
     private static final String ENCRYPTED_PREFIX = "enc:";
     private static final String REDACTED = "[redacted]";
+    private static final String PASSWORD = "password";
+    private static final Map<String, String> LEGACY_KEYS = Map.of(
+            "recipientName", "name",
+            "generatedPassword", PASSWORD,
+            "dueCount", "count",
+            "paidAmountMinor", "amount",
+            "transactionReference", "reference");
 
     public EmailNotificationService(EmailNotificationRepository emailNotificationRepo,
-                                    SendGridEmailService sendGridEmailService,
+                                    EmailTemplateService emailTemplateService,
                                     ObjectMapper objectMapper,
                                     TokenCipher tokenCipher) {
         this.tokenCipher = tokenCipher;
         this.emailNotificationRepo = emailNotificationRepo;
-        this.sendGridEmailService = sendGridEmailService;
+        this.emailTemplateService = emailTemplateService;
         this.objectMapper = objectMapper;
     }
 
     @Transactional
     public void queueEmployeePasswordEmail(String recipientEmail, String recipientName, String generatedPassword) {
-        queue(
-                EmailNotification.NotificationType.EMPLOYEE_PASSWORD,
-                recipientEmail,
-                "Your AfroDebab employee account",
-                new EmployeePasswordPayload(recipientName, protectPassword(generatedPassword))
-        );
+        queue(NotificationType.EMPLOYEE_PASSWORD, recipientEmail,
+                vars("name", recipientName, PASSWORD, protectPassword(generatedPassword)));
     }
 
     @Transactional
     public void queueAdminPayrollReminderEmail(String recipientEmail, String recipientName, int dueCount) {
-        queue(
-                EmailNotification.NotificationType.ADMIN_PAYROLL_REMINDER,
-                recipientEmail,
-                "AfroDebab payroll reminder",
-                new AdminPayrollReminderPayload(recipientName, dueCount)
-        );
+        queue(NotificationType.ADMIN_PAYROLL_REMINDER, recipientEmail,
+                vars("name", recipientName, "count", String.valueOf(dueCount)));
+    }
+
+    @Transactional
+    public void queueViceManagerPayrollReminderEmail(String recipientEmail, String recipientName, String branch, int dueCount) {
+        queue(NotificationType.VICE_MANAGER_PAYROLL_REMINDER, recipientEmail,
+                vars("name", recipientName, "branch", branch, "count", String.valueOf(dueCount)));
+    }
+
+    @Transactional
+    public void queueViceManagerNewEmployeeEmail(String recipientEmail, String recipientName, String branch,
+                                                 String employeeName, String employeeEmail, String position) {
+        queue(NotificationType.VICE_MANAGER_NEW_EMPLOYEE, recipientEmail,
+                vars("name", recipientName, "branch", branch, "employeeName", employeeName,
+                        "employeeEmail", employeeEmail, "position", position));
+    }
+
+    @Transactional
+    public void queueManagerNewJobApplicationEmail(String recipientEmail, String recipientName,
+                                                   String candidateName, String candidateEmail, String jobTitle) {
+        queue(NotificationType.MANAGER_NEW_JOB_APPLICATION, recipientEmail,
+                vars("name", recipientName, "candidateName", candidateName,
+                        "candidateEmail", candidateEmail, "jobTitle", jobTitle));
     }
 
     @Transactional
@@ -67,52 +92,29 @@ public class EmailNotificationService {
                                                   Long paidAmountMinor,
                                                   String transactionReference,
                                                   LocalDate dueDate) {
-        queue(
-                EmailNotification.NotificationType.EMPLOYEE_PAYMENT_RECEIVED,
-                recipientEmail,
-                "AfroDebab salary payment received",
-                new EmployeePaymentReceivedPayload(recipientName, paidAmountMinor, transactionReference, dueDate)
-        );
+        queue(NotificationType.EMPLOYEE_PAYMENT_RECEIVED, recipientEmail,
+                vars("name", recipientName, "amount", String.valueOf(paidAmountMinor),
+                        "reference", transactionReference, "dueDate", String.valueOf(dueDate)));
     }
 
     @Transactional
     public void queueHiringSelectedForInterviewEmail(String recipientEmail, String recipientName, String jobTitle) {
-        queue(
-                EmailNotification.NotificationType.HIRING_SELECTED_FOR_INTERVIEW,
-                recipientEmail,
-                "Interview selection - AfroDebab",
-                new HiringPayload(recipientName, jobTitle)
-        );
+        queue(NotificationType.HIRING_SELECTED_FOR_INTERVIEW, recipientEmail, vars("name", recipientName, "jobTitle", jobTitle));
     }
 
     @Transactional
     public void queueHiringRejectedPreInterviewEmail(String recipientEmail, String recipientName, String jobTitle) {
-        queue(
-                EmailNotification.NotificationType.HIRING_REJECTED_PRE_INTERVIEW,
-                recipientEmail,
-                "Application update - AfroDebab",
-                new HiringPayload(recipientName, jobTitle)
-        );
+        queue(NotificationType.HIRING_REJECTED_PRE_INTERVIEW, recipientEmail, vars("name", recipientName, "jobTitle", jobTitle));
     }
 
     @Transactional
     public void queueHiringHiredEmail(String recipientEmail, String recipientName, String jobTitle) {
-        queue(
-                EmailNotification.NotificationType.HIRING_HIRED,
-                recipientEmail,
-                "Offer update - AfroDebab",
-                new HiringPayload(recipientName, jobTitle)
-        );
+        queue(NotificationType.HIRING_HIRED, recipientEmail, vars("name", recipientName, "jobTitle", jobTitle));
     }
 
     @Transactional
     public void queueHiringRejectedPostInterviewEmail(String recipientEmail, String recipientName, String jobTitle) {
-        queue(
-                EmailNotification.NotificationType.HIRING_REJECTED_POST_INTERVIEW,
-                recipientEmail,
-                "Interview result - AfroDebab",
-                new HiringPayload(recipientName, jobTitle)
-        );
+        queue(NotificationType.HIRING_REJECTED_POST_INTERVIEW, recipientEmail, vars("name", recipientName, "jobTitle", jobTitle));
     }
 
     @Transactional(readOnly = true)
@@ -137,27 +139,21 @@ public class EmailNotificationService {
         return toResponse(notification);
     }
 
-    @Scheduled(cron = "0 0 0 * * *", zone = "UTC")
+    /** Sends the current organization's queued and failed emails. Run by {@link EmailScheduleService} at the org's dispatch time. */
     @Transactional
-    public void dispatchDaily() {
-        List<EmailNotification> notifications = emailNotificationRepo
+    public void dispatchPending() {
+        emailNotificationRepo
                 .findAllByStatusInAndAttemptCountLessThanOrderByCreatedAtAsc(
                         List.of(EmailNotification.DeliveryStatus.PENDING, EmailNotification.DeliveryStatus.FAILED),
                         MAX_ATTEMPTS
-                );
-
-        for (EmailNotification notification : notifications) {
-            sendNotification(notification);
-        }
+                )
+                .forEach(this::sendNotification);
     }
 
-    private void queue(EmailNotification.NotificationType type,
-                       String recipientEmail,
-                       String subject,
-                       Object payload) {
+    private void queue(NotificationType type, String recipientEmail, Map<String, String> vars) {
         String serializedPayload;
         try {
-            serializedPayload = objectMapper.writeValueAsString(payload);
+            serializedPayload = objectMapper.writeValueAsString(vars);
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("Failed to serialize email payload", ex);
         }
@@ -166,7 +162,7 @@ public class EmailNotificationService {
         notification.setType(type);
         notification.setStatus(EmailNotification.DeliveryStatus.PENDING);
         notification.setRecipientEmail(recipientEmail);
-        notification.setSubject(subject);
+        notification.setSubject(emailTemplateService.subject(type, withRecipient(vars, recipientEmail), TenantContext.get()));
         notification.setPayload(serializedPayload);
         emailNotificationRepo.save(notification);
     }
@@ -176,7 +172,10 @@ public class EmailNotificationService {
         notification.setAttemptCount(nextAttempt);
 
         try {
-            sendByType(notification);
+            Map<String, String> vars = withRecipient(readPayload(notification), notification.getRecipientEmail());
+            if (vars.containsKey(PASSWORD)) vars.put(PASSWORD, revealPassword(vars.get(PASSWORD)));
+            emailTemplateService.send(notification.getType(), notification.getRecipientEmail(), vars,
+                    notification.getOrganizationId());
             redactPasswordAfterSend(notification);
             notification.setStatus(EmailNotification.DeliveryStatus.SENT);
             notification.setSentAt(Instant.now());
@@ -187,69 +186,6 @@ public class EmailNotificationService {
         }
 
         emailNotificationRepo.save(notification);
-    }
-
-    private void sendByType(EmailNotification notification) {
-        switch (notification.getType()) {
-            case EMPLOYEE_PASSWORD -> {
-                EmployeePasswordPayload payload = readPayload(notification, EmployeePasswordPayload.class);
-                sendGridEmailService.sendEmployeePasswordEmail(
-                        notification.getRecipientEmail(),
-                        payload.recipientName(),
-                        revealPassword(payload.generatedPassword())
-                );
-            }
-            case ADMIN_PAYROLL_REMINDER -> {
-                AdminPayrollReminderPayload payload = readPayload(notification, AdminPayrollReminderPayload.class);
-                sendGridEmailService.sendAdminPayrollReminderEmail(
-                        notification.getRecipientEmail(),
-                        payload.recipientName(),
-                        payload.dueCount()
-                );
-            }
-            case EMPLOYEE_PAYMENT_RECEIVED -> {
-                EmployeePaymentReceivedPayload payload = readPayload(notification, EmployeePaymentReceivedPayload.class);
-                sendGridEmailService.sendEmployeePaymentReceivedEmail(
-                        notification.getRecipientEmail(),
-                        payload.recipientName(),
-                        payload.paidAmountMinor(),
-                        payload.transactionReference(),
-                        payload.dueDate()
-                );
-            }
-            case HIRING_SELECTED_FOR_INTERVIEW -> {
-                HiringPayload payload = readPayload(notification, HiringPayload.class);
-                sendGridEmailService.sendCandidateSelectedForInterviewEmail(
-                        notification.getRecipientEmail(),
-                        payload.recipientName(),
-                        payload.jobTitle()
-                );
-            }
-            case HIRING_REJECTED_PRE_INTERVIEW -> {
-                HiringPayload payload = readPayload(notification, HiringPayload.class);
-                sendGridEmailService.sendCandidateRejectedBeforeInterviewEmail(
-                        notification.getRecipientEmail(),
-                        payload.recipientName(),
-                        payload.jobTitle()
-                );
-            }
-            case HIRING_HIRED -> {
-                HiringPayload payload = readPayload(notification, HiringPayload.class);
-                sendGridEmailService.sendCandidateHiredEmail(
-                        notification.getRecipientEmail(),
-                        payload.recipientName(),
-                        payload.jobTitle()
-                );
-            }
-            case HIRING_REJECTED_POST_INTERVIEW -> {
-                HiringPayload payload = readPayload(notification, HiringPayload.class);
-                sendGridEmailService.sendCandidateRejectedPostInterviewEmail(
-                        notification.getRecipientEmail(),
-                        payload.recipientName(),
-                        payload.jobTitle()
-                );
-            }
-        }
     }
 
     // Passwords are only needed until the email goes out; encrypt them while queued.
@@ -265,22 +201,43 @@ public class EmailNotificationService {
     }
 
     private void redactPasswordAfterSend(EmailNotification notification) {
-        if (notification.getType() != EmailNotification.NotificationType.EMPLOYEE_PASSWORD) return;
-        EmployeePasswordPayload payload = readPayload(notification, EmployeePasswordPayload.class);
+        Map<String, String> payload = readPayload(notification);
+        if (!payload.containsKey(PASSWORD)) return;
+        payload.put(PASSWORD, REDACTED);
         try {
-            notification.setPayload(objectMapper.writeValueAsString(
-                    new EmployeePasswordPayload(payload.recipientName(), REDACTED)));
+            notification.setPayload(objectMapper.writeValueAsString(payload));
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("Failed to redact email payload", ex);
         }
     }
 
-    private <T> T readPayload(EmailNotification notification, Class<T> payloadType) {
+    /** Payload vars, with keys from payloads queued before templates existed mapped to placeholder names. */
+    private Map<String, String> readPayload(EmailNotification notification) {
+        Map<String, Object> raw;
         try {
-            return objectMapper.readValue(notification.getPayload(), payloadType);
+            raw = objectMapper.readValue(notification.getPayload(), new TypeReference<>() {});
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("Failed to parse email payload for notification " + notification.getId(), ex);
         }
+        Map<String, String> vars = new LinkedHashMap<>();
+        raw.forEach((key, value) -> {
+            if (value != null) vars.put(LEGACY_KEYS.getOrDefault(key, key), String.valueOf(value));
+        });
+        return vars;
+    }
+
+    private static Map<String, String> withRecipient(Map<String, String> vars, String recipientEmail) {
+        Map<String, String> copy = new LinkedHashMap<>(vars);
+        copy.putIfAbsent("email", recipientEmail);
+        return copy;
+    }
+
+    private static Map<String, String> vars(String... keyValues) {
+        Map<String, String> map = new LinkedHashMap<>();
+        for (int i = 0; i < keyValues.length; i += 2) {
+            if (keyValues[i + 1] != null) map.put(keyValues[i], keyValues[i + 1]);
+        }
+        return map;
     }
 
     private EmailNotificationResponse toResponse(EmailNotification notification) {
@@ -298,11 +255,4 @@ public class EmailNotificationService {
         );
     }
 
-    private record EmployeePasswordPayload(String recipientName, String generatedPassword) {}
-    private record AdminPayrollReminderPayload(String recipientName, int dueCount) {}
-    private record EmployeePaymentReceivedPayload(String recipientName,
-                                                  Long paidAmountMinor,
-                                                  String transactionReference,
-                                                  LocalDate dueDate) {}
-    private record HiringPayload(String recipientName, String jobTitle) {}
 }

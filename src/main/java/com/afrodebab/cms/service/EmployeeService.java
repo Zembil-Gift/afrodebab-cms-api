@@ -4,6 +4,7 @@ import com.afrodebab.cms.dto.*;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Employee;
+import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import org.springframework.data.domain.Page;
@@ -86,7 +87,7 @@ public class EmployeeService {
         employee.setActive(true);
 
         employeeRepo.save(employee);
-        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        queueNewEmployeeEmails(employee, generatedPassword);
         return toResponse(employee);
     }
 
@@ -130,7 +131,7 @@ public class EmployeeService {
             employeeRepo.save(employee);
         }
 
-        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        queueNewEmployeeEmails(employee, generatedPassword);
         return toResponse(employee);
     }
 
@@ -170,7 +171,7 @@ public class EmployeeService {
         employee.setActive(true);
 
         employeeRepo.save(employee);
-        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        queueNewEmployeeEmails(employee, generatedPassword);
         return employee;
     }
 
@@ -195,6 +196,17 @@ public class EmployeeService {
             return employeeRepo.findAllBySubOrganizationId(subOrganizationId, pageable).map(this::toResponse);
         }
         return employeeRepo.findAll(pageable).map(this::toResponse);
+    }
+
+    /** Credentials for the new employee, plus a heads-up to the vice managers of their branch. */
+    private void queueNewEmployeeEmails(Employee employee, String generatedPassword) {
+        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        SubOrganization branch = employee.getSubOrganization();
+        if (branch == null) return;
+        adminRepo.findAllByActiveTrueAndRoleAndSubOrganizationId(Manager.ManagerRole.VICE_MANAGER, branch.getId())
+                .forEach(vice -> emailNotificationService.queueViceManagerNewEmployeeEmail(
+                        vice.getEmail(), vice.getName(), branch.getName(),
+                        employee.getName(), employee.getEmail(), employee.getPosition()));
     }
 
     private SubOrganization resolveSubOrganization(Long subOrganizationId) {

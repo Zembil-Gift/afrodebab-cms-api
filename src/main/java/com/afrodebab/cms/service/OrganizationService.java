@@ -5,6 +5,7 @@ import com.afrodebab.cms.dto.OrgProfileUpdateRequest;
 import com.afrodebab.cms.dto.OrgResponse;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
+import com.afrodebab.cms.jpa.entity.EmailNotification.NotificationType;
 import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.Organization;
 import com.afrodebab.cms.jpa.entity.SignupRequest;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /** Platform-admin organization lifecycle: create org + first manager, list, suspend/activate. */
 @Service
@@ -32,13 +34,13 @@ public class OrganizationService {
     private final OrganizationRepository orgRepo;
     private final ManagerRepository managerRepo;
     private final PasswordEncoder passwordEncoder;
-    private final SendGridEmailService emailService;
+    private final EmailTemplateService emailService;
     private final SignupService signupService;
     private final SubOrganizationService subOrganizationService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public OrganizationService(OrganizationRepository orgRepo, ManagerRepository managerRepo,
-                               PasswordEncoder passwordEncoder, SendGridEmailService emailService,
+                               PasswordEncoder passwordEncoder, EmailTemplateService emailService,
                                SignupService signupService, SubOrganizationService subOrganizationService) {
         this.orgRepo = orgRepo;
         this.managerRepo = managerRepo;
@@ -99,7 +101,8 @@ public class OrganizationService {
 
         // Best-effort: a failed credentials email must not roll back a created organization.
         try {
-            emailService.sendManagerWelcomeEmail(managerEmail, managerName, org.getName(), generatedPassword);
+            emailService.send(NotificationType.MANAGER_WELCOME, managerEmail, Map.of(
+                    "name", managerName, "email", managerEmail, "password", generatedPassword), org.getId());
         } catch (RuntimeException ex) {
             log.warn("Organization {} created but manager welcome email to {} failed: {}",
                     org.getSlug(), managerEmail, ex.getMessage());
