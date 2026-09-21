@@ -4,9 +4,12 @@ package com.afrodebab.cms.service;
 import com.afrodebab.cms.dto.EventCreateRequest;
 import com.afrodebab.cms.dto.EventResponse;
 import com.afrodebab.cms.dto.EventUpdateRequest;
+import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Event;
+import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.EventRepository;
+import com.afrodebab.cms.jpa.repository.SubOrganizationRepository;
 import com.afrodebab.cms.util.SlugUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,11 +17,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional
 public class EventService {
 
     private final EventRepository repo;
+    private final SubOrganizationRepository subOrganizationRepo;
 
-    public EventService(EventRepository repo) { this.repo = repo; }
+    public EventService(EventRepository repo, SubOrganizationRepository subOrganizationRepo) {
+        this.repo = repo;
+        this.subOrganizationRepo = subOrganizationRepo;
+    }
 
     // public
     @Transactional(readOnly = true)
@@ -36,6 +44,14 @@ public class EventService {
     // manager: list ALL of the current tenant's events (any status). Tenant-scoped by @TenantId.
     @Transactional(readOnly = true)
     public Page<EventResponse> listAllAdmin(Pageable pageable) {
+        return listAllAdmin(pageable, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EventResponse> listAllAdmin(Pageable pageable, Long subOrganizationId) {
+        if (subOrganizationId != null) {
+            return repo.findAllBySubOrganizationId(subOrganizationId, pageable).map(this::toResponse);
+        }
         return repo.findAll(pageable).map(this::toResponse);
     }
 
@@ -58,6 +74,12 @@ public class EventService {
         e.setRegistrationUrl(req.registrationUrl());
         e.setStatus(req.status() == null ? Event.Status.DRAFT : req.status());
 
+        if (req.subOrganizationId() != null) {
+            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
+                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
+            e.setSubOrganization(subOrg);
+        }
+
         String baseSlug = (req.slug() != null && !req.slug().isBlank())
                 ? SlugUtil.toSlug(req.slug())
                 : SlugUtil.toSlug(req.title());
@@ -77,7 +99,14 @@ public class EventService {
         if (req.startDate() != null) e.setStartDate(req.startDate());
         if (req.endDate() != null) e.setEndDate(req.endDate());
         if (req.registrationUrl() != null) e.setRegistrationUrl(req.registrationUrl());
+        if (req.coverImageUrl() != null) e.setCoverImageUrl(req.coverImageUrl());
         if (req.status() != null) e.setStatus(req.status());
+
+        if (req.subOrganizationId() != null) {
+            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
+                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
+            e.setSubOrganization(subOrg);
+        }
 
         if (req.slug() != null) e.setSlug(uniqueSlug(SlugUtil.toSlug(req.slug())));
 
@@ -93,10 +122,12 @@ public class EventService {
     }
 
     private EventResponse toResponse(Event e) {
+        Long subOrgId = e.getSubOrganization() != null ? e.getSubOrganization().getId() : null;
+        String subOrgName = e.getSubOrganization() != null ? e.getSubOrganization().getName() : null;
         return new EventResponse(
                 e.getId(), e.getTitle(), e.getSlug(), e.getDescription(),
-                e.getEventType(), e.getLocation(), e.getStartDate(),e.getCoverImageUrl(), e.getEndDate(),
-                e.getRegistrationUrl(), e.getStatus()
+                e.getEventType(), e.getLocation(), e.getStartDate(), e.getCoverImageUrl(), e.getEndDate(),
+                e.getRegistrationUrl(), e.getStatus(), subOrgId, subOrgName
         );
     }
 }

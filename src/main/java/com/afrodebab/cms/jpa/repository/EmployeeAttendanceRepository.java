@@ -15,4 +15,6 @@ public interface EmployeeAttendanceRepository extends JpaRepository<EmployeeAtte
             LocalDate from,
             LocalDate to
     );
+    List<EmployeeAttendance> findAllByEmployeeSubOrganizationIdAndAttendanceDate(Long subOrganizationId, LocalDate attendanceDate);
+    List<EmployeeAttendance> findAllByEmployeeSubOrganizationIdAndAttendanceDateBetween(Long subOrganizationId, LocalDate from, LocalDate to);
 }

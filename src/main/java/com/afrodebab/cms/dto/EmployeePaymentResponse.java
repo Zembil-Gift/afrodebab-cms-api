@@ -11,6 +11,8 @@ public record EmployeePaymentResponse(
         Long id,
         Long employeeId,
         String employeeName,
+        Long subOrganizationId,
+        String subOrganizationName,
         LocalDate cycleStartDate,
         LocalDate dueDate,
         Long amountMinor,

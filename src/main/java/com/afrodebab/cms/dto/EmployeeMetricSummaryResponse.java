@@ -10,6 +10,8 @@ public record EmployeeMetricSummaryResponse(
         String department,
         String employmentType,
         String employeeStatus,
+        Long subOrganizationId,
+        String subOrganizationName,
         LocalDate periodStart,
         LocalDate periodEnd,
         BigDecimal leadershipScore,

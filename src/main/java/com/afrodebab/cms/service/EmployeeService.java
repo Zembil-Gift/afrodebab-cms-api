@@ -25,6 +25,9 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
+import com.afrodebab.cms.jpa.entity.SubOrganization;
+import com.afrodebab.cms.jpa.repository.SubOrganizationRepository;
+
 @Service
 public class EmployeeService {
     private static final String PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
@@ -32,6 +35,7 @@ public class EmployeeService {
 
     private final EmployeeRepository employeeRepo;
     private final ManagerRepository adminRepo;
+    private final SubOrganizationRepository subOrganizationRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailNotificationService emailNotificationService;
@@ -40,12 +44,14 @@ public class EmployeeService {
 
     public EmployeeService(EmployeeRepository employeeRepo,
                            ManagerRepository adminRepo,
+                           SubOrganizationRepository subOrganizationRepo,
                            PasswordEncoder passwordEncoder,
                            JwtService jwtService,
                            EmailNotificationService emailNotificationService,
                            CloudflareR2Service cloudflareR2Service) {
         this.employeeRepo = employeeRepo;
         this.adminRepo = adminRepo;
+        this.subOrganizationRepo = subOrganizationRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailNotificationService = emailNotificationService;
@@ -72,6 +78,7 @@ public class EmployeeService {
         employee.setGithubUsername(req.githubUsername());
         employee.setTrelloUsername(req.trelloUsername());
         employee.setTelegramUsername(req.telegramUsername());
+        employee.setSubOrganization(resolveSubOrganization(req.subOrganizationId()));
         employee.setSalaryEffectiveDate(req.salaryDate());
         employee.setSalaryAmountMinor(req.salaryAmountMinor());
         employee.setOfficeDays(normalizeScheduleDays(req.salaryScheduleDays()));
@@ -86,7 +93,8 @@ public class EmployeeService {
     @Transactional
     public EmployeeResponse createFromForm(String name, String email, String phone, String position,
                                            String role, String department, String employmentType, String employeeStatus,
-                                           String linkedinUrl, String photoUrl, String githubUsername, String trelloUsername, String telegramUsername, LocalDate salaryDate,
+                                           String linkedinUrl, String photoUrl, String githubUsername, String trelloUsername, String telegramUsername,
+                                           Long subOrganizationId, LocalDate salaryDate,
                                            Long salaryAmountMinor, Set<DayOfWeek> salaryScheduleDays,
                                            MultipartFile photo) {
         String normalizedEmail = normalizeEmail(email);
@@ -107,6 +115,7 @@ public class EmployeeService {
         employee.setGithubUsername(githubUsername);
         employee.setTrelloUsername(trelloUsername);
         employee.setTelegramUsername(telegramUsername);
+        employee.setSubOrganization(resolveSubOrganization(subOrganizationId));
         employee.setSalaryEffectiveDate(salaryDate);
         employee.setSalaryAmountMinor(salaryAmountMinor);
         employee.setOfficeDays(normalizeScheduleDays(salaryScheduleDays));
@@ -130,9 +139,10 @@ public class EmployeeService {
                                                        String email,
                                                        String phone,
                                                        String position,
+                                                       Long subOrganizationId,
                                                        LocalDate salaryDate,
                                                        Long salaryAmountMinor) {
-        return toResponse(createEntityFromHiredApplication(name, email, phone, position, salaryDate, salaryAmountMinor));
+        return toResponse(createEntityFromHiredApplication(name, email, phone, position, subOrganizationId, salaryDate, salaryAmountMinor));
     }
 
     @Transactional
@@ -140,6 +150,7 @@ public class EmployeeService {
                                                      String email,
                                                      String phone,
                                                      String position,
+                                                     Long subOrganizationId,
                                                      LocalDate salaryDate,
                                                      Long salaryAmountMinor) {
         String normalizedEmail = normalizeEmail(email);
@@ -151,6 +162,7 @@ public class EmployeeService {
         employee.setEmail(normalizedEmail);
         employee.setPhone(phone);
         employee.setPosition(position);
+        employee.setSubOrganization(resolveSubOrganization(subOrganizationId));
         employee.setSalaryEffectiveDate(salaryDate);
         employee.setSalaryAmountMinor(salaryAmountMinor);
         employee.setOfficeDays(EnumSet.noneOf(DayOfWeek.class));
@@ -162,9 +174,36 @@ public class EmployeeService {
         return employee;
     }
 
+    @Transactional
+    public Employee createEntityFromHiredApplication(String name,
+                                                     String email,
+                                                     String phone,
+                                                     String position,
+                                                     LocalDate salaryDate,
+                                                     Long salaryAmountMinor) {
+        return createEntityFromHiredApplication(name, email, phone, position, null, salaryDate, salaryAmountMinor);
+    }
+
     @Transactional(readOnly = true)
     public Page<EmployeeResponse> list(Pageable pageable) {
+        return list(pageable, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EmployeeResponse> list(Pageable pageable, Long subOrganizationId) {
+        if (subOrganizationId != null) {
+            return employeeRepo.findAllBySubOrganizationId(subOrganizationId, pageable).map(this::toResponse);
+        }
         return employeeRepo.findAll(pageable).map(this::toResponse);
+    }
+
+    private SubOrganization resolveSubOrganization(Long subOrganizationId) {
+        if (subOrganizationId != null) {
+            return subOrganizationRepo.findById(subOrganizationId)
+                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + subOrganizationId));
+        }
+        return subOrganizationRepo.findByIsDefaultTrue()
+                .orElseThrow(() -> new BadRequestException("Default sub-organization not found"));
     }
 
     @Transactional(readOnly = true)
@@ -179,12 +218,22 @@ public class EmployeeService {
 
     @Transactional(readOnly = true)
     public Page<EmployeeResponse> listWithTelegramUsername(Pageable pageable) {
-        return employeeRepo.findAllWithTelegramUsername(pageable).map(this::toResponse);
+        return listWithTelegramUsername(pageable, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EmployeeResponse> listWithTelegramUsername(Pageable pageable, Long subOrganizationId) {
+        return employeeRepo.findAllWithTelegramUsername(subOrganizationId, pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
     public Page<EmployeeConnectedAccountsAdminResponse> listConnectedAccounts(Pageable pageable) {
-        return employeeRepo.findAllWithConnectedAccounts(pageable).map(this::toConnectedAccountsAdminResponse);
+        return listConnectedAccounts(pageable, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EmployeeConnectedAccountsAdminResponse> listConnectedAccounts(Pageable pageable, Long subOrganizationId) {
+        return employeeRepo.findAllWithConnectedAccounts(subOrganizationId, pageable).map(this::toConnectedAccountsAdminResponse);
     }
 
     @Transactional(readOnly = true)
@@ -237,6 +286,11 @@ public class EmployeeService {
         if (req.trelloUsername() != null) employee.setTrelloUsername(req.trelloUsername());
         if (req.telegramUsername() != null) employee.setTelegramUsername(req.telegramUsername());
         if (req.active() != null) employee.setActive(req.active());
+        if (req.subOrganizationId() != null) {
+            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
+                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
+            employee.setSubOrganization(subOrg);
+        }
         if (req.salaryDate() != null) employee.setSalaryEffectiveDate(req.salaryDate());
         if (req.salaryAmountMinor() != null) employee.setSalaryAmountMinor(req.salaryAmountMinor());
         if (req.salaryScheduleDays() != null) employee.setOfficeDays(normalizeScheduleDays(req.salaryScheduleDays()));
@@ -391,6 +445,9 @@ public class EmployeeService {
     private EmployeeResponse toResponse(Employee employee) {
         List<DayOfWeek> officeDays = new ArrayList<>(employee.getOfficeDays());
         officeDays.sort(DayOfWeek::compareTo);
+        Long subOrgId = employee.getSubOrganization() != null ? employee.getSubOrganization().getId() : null;
+        String subOrgName = employee.getSubOrganization() != null ? employee.getSubOrganization().getName() : null;
+
         return new EmployeeResponse(
                 employee.getId(),
                 employee.getName(),
@@ -407,6 +464,8 @@ public class EmployeeService {
                 employee.getTrelloUsername(),
                 employee.getTelegramUsername(),
                 employee.isActive(),
+                subOrgId,
+                subOrgName,
                 employee.getSalaryEffectiveDate(),
                 employee.getSalaryAmountMinor(),
                 officeDays,

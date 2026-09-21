@@ -24,6 +24,7 @@ public record EmployeeCreateRequest(
         String githubUsername,
         String trelloUsername,
         String telegramUsername,
+        Long subOrganizationId,
         LocalDate salaryDate,
         @PositiveOrZero(message = "salaryAmountMinor must be zero or positive") Long salaryAmountMinor,
         @NotNull(message = "salaryScheduleDays is required") @NotEmpty(message = "salaryScheduleDays must not be empty") Set<DayOfWeek> salaryScheduleDays

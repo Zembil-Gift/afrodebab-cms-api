@@ -60,8 +60,27 @@ public class EmployeeAttendance extends com.afrodebab.cms.tenant.TenantEntity {
     @Column(name = "attendance_status")
     private Map<String, String> attendanceStatus = new LinkedHashMap<>();
 
+    public enum GeoStatus {
+        WITHIN_RANGE,
+        OUT_OF_RANGE,
+        NO_COORDS
+    }
+
     @Column(name = "notes")
     private String notes;
+
+    @Column(name = "clock_in_lat")
+    private Double clockInLat;
+
+    @Column(name = "clock_in_lng")
+    private Double clockInLng;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "geo_status")
+    private GeoStatus geoStatus;
+
+    @Column(name = "clock_in_distance_m")
+    private Double clockInDistanceM;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

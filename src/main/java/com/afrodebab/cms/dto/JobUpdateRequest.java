@@ -10,6 +10,7 @@ public record JobUpdateRequest(
         Job.EmploymentType employmentType,
         String location,
         String description,
-        Job.Status status
+        Job.Status status,
+        Long subOrganizationId
 ) {}
 

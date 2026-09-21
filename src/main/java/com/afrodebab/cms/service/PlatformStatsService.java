@@ -33,7 +33,9 @@ public class PlatformStatsService {
     public PlatformStatsResponse overview() {
         List<Organization> orgs = orgRepo.findAll();
 
-        Map<Long, Long> managers = countByOrg("managers", null);
+        Map<Long, Long> managers = countByOrg("managers", "role = 'MANAGER' OR role IS NULL");
+        Map<Long, Long> viceManagers = countByOrg("managers", "role = 'VICE_MANAGER'");
+        Map<Long, Long> subOrganizations = countByOrg("sub_organizations", null);
         Map<Long, Long> employees = countByOrg("employees", null);
         Map<Long, Long> jobs = countByOrg("jobs", null);
         Map<Long, Long> openJobs = countByOrg("jobs", "status = 'OPEN'");
@@ -47,6 +49,8 @@ public class PlatformStatsService {
         List<OrgStatsResponse> perOrg = orgs.stream().map(o -> new OrgStatsResponse(
                 o.getId(), o.getName(), o.getSlug(), o.getStatus(), o.getPlan(), o.getCreatedAt(),
                 managers.getOrDefault(o.getId(), 0L),
+                viceManagers.getOrDefault(o.getId(), 0L),
+                subOrganizations.getOrDefault(o.getId(), 0L),
                 employees.getOrDefault(o.getId(), 0L),
                 jobs.getOrDefault(o.getId(), 0L),
                 openJobs.getOrDefault(o.getId(), 0L),
@@ -64,6 +68,8 @@ public class PlatformStatsService {
         return new PlatformStatsResponse(
                 orgs.size(), active, suspended,
                 perOrg.stream().mapToLong(OrgStatsResponse::managers).sum(),
+                perOrg.stream().mapToLong(OrgStatsResponse::viceManagers).sum(),
+                perOrg.stream().mapToLong(OrgStatsResponse::subOrganizations).sum(),
                 perOrg.stream().mapToLong(OrgStatsResponse::employees).sum(),
                 perOrg.stream().mapToLong(OrgStatsResponse::jobs).sum(),
                 perOrg.stream().mapToLong(OrgStatsResponse::openJobs).sum(),

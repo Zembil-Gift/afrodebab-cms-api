@@ -8,8 +8,10 @@ import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.EmployeeAttendance;
+import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.EmployeeAttendanceRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
+import com.afrodebab.cms.util.GeoUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,6 +75,7 @@ public class EmployeeAttendanceService {
         attendance.setLunchBreakInAt(req.lunchBreakInAt());
         attendance.setLunchBreakOutAt(req.lunchBreakOutAt());
         attendance.setAttendanceStatus(computeAttendanceStatus(
+                employee.getSubOrganization(),
                 req.clockInAt(),
                 req.clockOutAt(),
                 req.lunchBreakInAt(),
@@ -116,7 +119,20 @@ public class EmployeeAttendanceService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<EmployeeAttendanceResponse> listBySubOrganizationAndDate(Long subOrganizationId, LocalDate date) {
+        return employeeAttendanceRepo.findAllByEmployeeSubOrganizationIdAndAttendanceDate(subOrganizationId, date)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     private EmployeeAttendanceResponse toResponse(EmployeeAttendance attendance) {
+        String subOrgName = (attendance.getEmployee() != null && attendance.getEmployee().getSubOrganization() != null)
+                ? attendance.getEmployee().getSubOrganization().getName()
+                : null;
+        String geoStatusStr = attendance.getGeoStatus() != null ? attendance.getGeoStatus().name() : null;
+
         return new EmployeeAttendanceResponse(
                 attendance.getId(),
                 attendance.getEmployee().getId(),
@@ -126,6 +142,11 @@ public class EmployeeAttendanceService {
                 attendance.getLunchBreakInAt(),
                 attendance.getLunchBreakOutAt(),
                 attendance.getAttendanceStatus(),
+                attendance.getClockInLat(),
+                attendance.getClockInLng(),
+                attendance.getClockInDistanceM(),
+                geoStatusStr,
+                subOrgName,
                 attendance.getNotes(),
                 attendance.getCreatedAt(),
                 attendance.getUpdatedAt()
@@ -134,6 +155,11 @@ public class EmployeeAttendanceService {
 
     @Transactional
     public EmployeeAttendanceResponse clockIn(String email) {
+        return clockIn(email, null, null);
+    }
+
+    @Transactional
+    public EmployeeAttendanceResponse clockIn(String email, Double latitude, Double longitude) {
         String normalizedEmail = normalizeEmail(email);
         Employee employee = employeeRepo.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
@@ -146,11 +172,32 @@ public class EmployeeAttendanceService {
             throw new BadRequestException("Already clocked in today");
         }
 
+        SubOrganization subOrg = employee.getSubOrganization();
+        EmployeeAttendance.GeoStatus geoStatus;
+        Double distanceM = null;
+
+        if (subOrg != null && subOrg.getLatitude() != null && subOrg.getLongitude() != null) {
+            if (latitude != null && longitude != null) {
+                distanceM = GeoUtil.distanceMeters(latitude, longitude, subOrg.getLatitude(), subOrg.getLongitude());
+                int radius = subOrg.getGeoRadiusM() != null ? subOrg.getGeoRadiusM() : 200;
+                geoStatus = (distanceM <= radius) ? EmployeeAttendance.GeoStatus.WITHIN_RANGE : EmployeeAttendance.GeoStatus.OUT_OF_RANGE;
+            } else {
+                geoStatus = EmployeeAttendance.GeoStatus.OUT_OF_RANGE;
+            }
+        } else {
+            geoStatus = EmployeeAttendance.GeoStatus.NO_COORDS;
+        }
+
         EmployeeAttendance attendance = new EmployeeAttendance();
         attendance.setEmployee(employee);
         attendance.setAttendanceDate(today);
         attendance.setClockInAt(Instant.now());
+        attendance.setClockInLat(latitude);
+        attendance.setClockInLng(longitude);
+        attendance.setClockInDistanceM(distanceM);
+        attendance.setGeoStatus(geoStatus);
         attendance.setAttendanceStatus(computeAttendanceStatus(
+                subOrg,
                 attendance.getClockInAt(),
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
@@ -191,6 +238,7 @@ public class EmployeeAttendanceService {
 
         attendance.setClockOutAt(now);
         attendance.setAttendanceStatus(computeAttendanceStatus(
+                employee.getSubOrganization(),
                 attendance.getClockInAt(),
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
@@ -226,6 +274,7 @@ public class EmployeeAttendanceService {
 
         attendance.setLunchBreakInAt(now);
         attendance.setAttendanceStatus(computeAttendanceStatus(
+                employee.getSubOrganization(),
                 attendance.getClockInAt(),
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
@@ -264,6 +313,7 @@ public class EmployeeAttendanceService {
 
         attendance.setLunchBreakOutAt(now);
         attendance.setAttendanceStatus(computeAttendanceStatus(
+                employee.getSubOrganization(),
                 attendance.getClockInAt(),
                 attendance.getClockOutAt(),
                 attendance.getLunchBreakInAt(),
@@ -333,17 +383,30 @@ public class EmployeeAttendanceService {
         }
     }
 
-    private Map<String, String> computeAttendanceStatus(Instant clockInAt,
+    private Map<String, String> computeAttendanceStatus(SubOrganization subOrg,
+                                                        Instant clockInAt,
                                                         Instant clockOutAt,
                                                         Instant lunchBreakInAt,
                                                         Instant lunchBreakOutAt,
                                                         EmployeeAttendance.AttendanceFinalStatus finalStatusOverride) {
-        LocalTime entryBaseline = attendancePolicyProperties.getEntryTime();
-        LocalTime exitBaseline = attendancePolicyProperties.getExitTime();
-        LocalTime lunchStartBaseline = attendancePolicyProperties.getLunchStartTime();
-        LocalTime lunchEndBaseline = attendancePolicyProperties.getLunchEndTime();
-        int graceMinutes = attendancePolicyProperties.getGraceMinutes();
-        int maxLunchBreakMinutes = attendancePolicyProperties.getMaxLunchBreakMinutes();
+        LocalTime entryBaseline = (subOrg != null && subOrg.getEntryTime() != null)
+                ? subOrg.getEntryTime()
+                : attendancePolicyProperties.getEntryTime();
+        LocalTime exitBaseline = (subOrg != null && subOrg.getExitTime() != null)
+                ? subOrg.getExitTime()
+                : attendancePolicyProperties.getExitTime();
+        LocalTime lunchStartBaseline = (subOrg != null && subOrg.getLunchStartTime() != null)
+                ? subOrg.getLunchStartTime()
+                : attendancePolicyProperties.getLunchStartTime();
+        LocalTime lunchEndBaseline = (subOrg != null && subOrg.getLunchEndTime() != null)
+                ? subOrg.getLunchEndTime()
+                : attendancePolicyProperties.getLunchEndTime();
+        int graceMinutes = (subOrg != null && subOrg.getGraceMinutes() != null)
+                ? subOrg.getGraceMinutes()
+                : attendancePolicyProperties.getGraceMinutes();
+        int maxLunchBreakMinutes = (subOrg != null && subOrg.getMaxLunchBreakMinutes() != null)
+                ? subOrg.getMaxLunchBreakMinutes()
+                : attendancePolicyProperties.getMaxLunchBreakMinutes();
 
         String entryStatus = "ABSENT";
         String exitStatus = "ABSENT";

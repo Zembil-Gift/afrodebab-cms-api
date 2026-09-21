@@ -54,6 +54,7 @@ public class EmployeeAdminController {
             @RequestParam(required = false) String githubUsername,
             @RequestParam(required = false) String trelloUsername,
             @RequestParam(required = false) String telegramUsername,
+            @RequestParam(required = false) Long subOrganizationId,
             @RequestParam(required = false) LocalDate salaryDate,
             @RequestParam(required = false) Long salaryAmountMinor,
             @RequestParam Set<DayOfWeek> salaryScheduleDays,
@@ -75,6 +76,7 @@ public class EmployeeAdminController {
                 githubUsername,
                 trelloUsername,
                 telegramUsername,
+                subOrganizationId,
                 salaryDate,
                 salaryAmountMinor,
                 salaryScheduleDays,
@@ -84,6 +86,7 @@ public class EmployeeAdminController {
 
     @GetMapping
     public Page<EmployeeResponse> list(
+            @RequestParam(required = false) Long subOrganizationId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -94,7 +97,7 @@ public class EmployeeAdminController {
                 : Sort.Direction.DESC;
 
         var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
-        return service.list(pageable);
+        return service.list(pageable, subOrganizationId);
     }
 
     @GetMapping("/with-github")

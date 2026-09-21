@@ -12,5 +12,6 @@ public record JobCreateRequest(
         @NotNull(message="employmentType is required") Job.EmploymentType employmentType,
         String location,
         @NotBlank(message="description is required") String description,
-        Job.Status status
+        Job.Status status,
+        Long subOrganizationId
 ) {}

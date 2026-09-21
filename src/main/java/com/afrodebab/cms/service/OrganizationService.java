@@ -34,16 +34,18 @@ public class OrganizationService {
     private final PasswordEncoder passwordEncoder;
     private final SendGridEmailService emailService;
     private final SignupService signupService;
+    private final SubOrganizationService subOrganizationService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public OrganizationService(OrganizationRepository orgRepo, ManagerRepository managerRepo,
                                PasswordEncoder passwordEncoder, SendGridEmailService emailService,
-                               SignupService signupService) {
+                               SignupService signupService, SubOrganizationService subOrganizationService) {
         this.orgRepo = orgRepo;
         this.managerRepo = managerRepo;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.signupService = signupService;
+        this.subOrganizationService = subOrganizationService;
     }
 
     /**
@@ -91,6 +93,9 @@ public class OrganizationService {
                 .passwordHash(passwordEncoder.encode(generatedPassword))
                 .active(true)
                 .build()));
+
+        // Create the default sub-organization under the new org's scope.
+        TenantContext.callAs(org.getId(), () -> subOrganizationService.createDefaultSubOrganization(org.getName()));
 
         // Best-effort: a failed credentials email must not roll back a created organization.
         try {

@@ -112,11 +112,17 @@ public class JobApplicationService {
             throw new BadRequestException("Candidate is already hired");
         }
 
+        Long targetSubOrgId = req.subOrganizationId();
+        if (targetSubOrgId == null && selectedCandidate.getJob() != null && selectedCandidate.getJob().getSubOrganization() != null) {
+            targetSubOrgId = selectedCandidate.getJob().getSubOrganization().getId();
+        }
+
         Employee employee = employeeService.createEntityFromHiredApplication(
                 selectedCandidate.getFullName(),
                 selectedCandidate.getEmail(),
                 req.phone(),
                 req.position(),
+                targetSubOrgId,
                 req.salaryDate(),
                 req.salaryAmountMinor()
         );

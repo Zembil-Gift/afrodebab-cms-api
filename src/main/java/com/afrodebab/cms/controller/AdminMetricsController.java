@@ -44,12 +44,6 @@ public class AdminMetricsController {
         this.employeeTimeSpentService = employeeTimeSpentService;
     }
 
-    private String toSnakeCase(String camelCase) {
-        if (camelCase == null || camelCase.isEmpty()) {
-            return camelCase;
-        }
-        return camelCase.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
-    }
 
     @GetMapping("/employees")
     public Page<EmployeeMetricSummaryResponse> employeeMetrics(
@@ -57,6 +51,7 @@ public class AdminMetricsController {
             @RequestParam LocalDate periodEnd,
             @RequestParam(required = false) String department,
             @RequestParam(required = false) String role,
+            @RequestParam(required = false) Long subOrganizationId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -64,13 +59,13 @@ public class AdminMetricsController {
             @RequestParam(defaultValue = "false") boolean persistSnapshot
     ) {
         Sort.Direction dir = "asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        String dbSortBy = toSnakeCase(sortBy);
-        PageRequest pageable = PageRequest.of(page, size, Sort.by(dir, dbSortBy));
+                PageRequest pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
         return metricsService.getEmployeeMetricsPage(
                 periodStart,
                 periodEnd,
                 department,
                 role,
+                subOrganizationId,
                 pageable,
                 persistSnapshot
         );
@@ -144,8 +139,11 @@ public class AdminMetricsController {
     }
 
     @GetMapping("/peer-reviews/periods/{periodId}/results")
-    public PeerReviewPeriodResultsResponse peerReviewResults(@PathVariable Long periodId) {
-        return peerReviewService.getPeriodResults(periodId);
+    public PeerReviewPeriodResultsResponse peerReviewResults(
+            @PathVariable Long periodId,
+            @RequestParam(required = false) Long subOrganizationId
+    ) {
+        return peerReviewService.getPeriodResults(periodId, subOrganizationId);
     }
 
     @GetMapping("/peer-reviews/periods/{periodId}/comments/{employeeId}")

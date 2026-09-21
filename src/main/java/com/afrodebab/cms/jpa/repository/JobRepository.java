@@ -10,5 +10,6 @@ import java.util.Optional;
 public interface JobRepository extends JpaRepository<Job, Long> {
     Optional<Job> findBySlug(String slug);
     Page<Job> findAllByStatus(Job.Status status, Pageable pageable);
+    Page<Job> findAllBySubOrganizationId(Long subOrganizationId, Pageable pageable);
     boolean existsBySlug(String slug);
 }

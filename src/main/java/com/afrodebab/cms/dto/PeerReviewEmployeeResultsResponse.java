@@ -9,6 +9,8 @@ public record PeerReviewEmployeeResultsResponse(
         String department,
         String role,
         String employmentType,
+        Long subOrganizationId,
+        String subOrganizationName,
         BigDecimal leadershipScore,
         List<PeerReviewPrincipleAverageResponse> principleAverages,
         List<String> comments

@@ -8,6 +8,8 @@ public record PlatformStatsResponse(
         long activeOrganizations,
         long suspendedOrganizations,
         long totalManagers,
+        long totalViceManagers,
+        long totalSubOrganizations,
         long totalEmployees,
         long totalJobs,
         long totalOpenJobs,

@@ -21,6 +21,8 @@ public record EmployeeResponse(
         String trelloUsername,
         String telegramUsername,
         boolean active,
+        Long subOrganizationId,
+        String subOrganizationName,
         LocalDate salaryDate,
         Long salaryAmountMinor,
         List<DayOfWeek> salaryScheduleDays,

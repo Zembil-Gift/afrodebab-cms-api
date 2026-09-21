@@ -5,6 +5,8 @@ import com.afrodebab.cms.service.EmployeeUserDetailsService;
 import com.afrodebab.cms.service.JwtService;
 import com.afrodebab.cms.service.ManagerUserDetailsService;
 import com.afrodebab.cms.service.PlatformAdminUserDetailsService;
+import com.afrodebab.cms.service.ViceManagerUserDetailsService;
+import com.afrodebab.cms.tenant.SubOrgContext;
 import com.afrodebab.cms.tenant.TenantContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -24,15 +26,18 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final PlatformAdminUserDetailsService platformAdminUserDetailsService;
     private final ManagerUserDetailsService managerUserDetailsService;
+    private final ViceManagerUserDetailsService viceManagerUserDetailsService;
     private final EmployeeUserDetailsService employeeUserDetailsService;
 
     public JwtAuthFilter(JwtService jwtService,
                          PlatformAdminUserDetailsService platformAdminUserDetailsService,
                          ManagerUserDetailsService managerUserDetailsService,
+                         ViceManagerUserDetailsService viceManagerUserDetailsService,
                          EmployeeUserDetailsService employeeUserDetailsService) {
         this.jwtService = jwtService;
         this.platformAdminUserDetailsService = platformAdminUserDetailsService;
         this.managerUserDetailsService = managerUserDetailsService;
+        this.viceManagerUserDetailsService = viceManagerUserDetailsService;
         this.employeeUserDetailsService = employeeUserDetailsService;
     }
 
@@ -41,11 +46,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         boolean protectedPath = path.startsWith("/admin")
                 || path.startsWith("/manager")
+                || path.startsWith("/vice-manager")
                 || path.startsWith("/employee/me");
         // Skip JWT check for public routes + login + swagger
         return !protectedPath
                 || path.startsWith("/admin/auth")
                 || path.startsWith("/manager/auth")
+                || path.startsWith("/vice-manager/auth")
                 || path.startsWith("/employee/auth")
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/v3/api-docs")
@@ -73,11 +80,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String email = jwtService.extractSubject(token);
                 String role = jwtService.extractRole(token);
                 Long orgId = jwtService.extractOrgId(token);
+                Long subOrgId = jwtService.extractSubOrgId(token);
 
                 // Scope every downstream query to the caller's org (managers/employees).
                 // Platform-admin tokens carry no orgId and stay unscoped (global tables only).
                 if (orgId != null) {
                     TenantContext.set(orgId);
+                }
+                if (subOrgId != null) {
+                    SubOrgContext.set(subOrgId);
                 }
 
                 // Only set auth if not already set
@@ -85,6 +96,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     UserDetails user = switch (role) {
                         case "ADMIN" -> platformAdminUserDetailsService.loadUserByUsername(email);
                         case "MANAGER" -> managerUserDetailsService.loadUserByUsername(email);
+                        case "VICE_MANAGER" -> viceManagerUserDetailsService.loadUserByUsername(email);
                         case "EMPLOYEE" -> employeeUserDetailsService.loadUserByUsername(email);
                         default -> throw new IllegalArgumentException("Unknown token role");
                     };
@@ -99,12 +111,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // Invalid token -> clear context so it will be treated as unauthenticated
                 SecurityContextHolder.clearContext();
                 TenantContext.clear();
+                SubOrgContext.clear();
             }
 
             filterChain.doFilter(request, response);
         } finally {
             // Never let a tenant leak into the next request handled by this thread.
             TenantContext.clear();
+            SubOrgContext.clear();
         }
     }
 }

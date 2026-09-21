@@ -19,7 +19,7 @@ spring:
       max-request-size: 50MB
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     # Disabled so each transaction opens its own Hibernate session and resolves the current
     # tenant (@TenantId) at that point. Required for correct multi-tenant scoping.

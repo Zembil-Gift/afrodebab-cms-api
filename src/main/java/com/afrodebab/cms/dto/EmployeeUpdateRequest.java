@@ -23,6 +23,7 @@ public record EmployeeUpdateRequest(
         String trelloUsername,
         String telegramUsername,
         Boolean active,
+        Long subOrganizationId,
         LocalDate salaryDate,
         @PositiveOrZero(message = "salaryAmountMinor must be zero or positive") Long salaryAmountMinor,
         @NotEmpty(message = "salaryScheduleDays must not be empty") Set<DayOfWeek> salaryScheduleDays

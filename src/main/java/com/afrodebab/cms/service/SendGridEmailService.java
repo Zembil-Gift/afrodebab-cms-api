@@ -47,6 +47,24 @@ public class SendGridEmailService {
         sendEmail(recipientEmail, "Your AfroDebab employee account", plainBody, htmlBody, "Failed to send employee password email");
     }
 
+    public void sendViceManagerWelcomeEmail(String recipientEmail, String recipientName, String subOrgName, String generatedPassword) {
+        String plainBody = "Hello " + recipientName + ",\n\n"
+                + "You have been appointed as Vice Manager for " + subOrgName + ".\n"
+                + "Temporary password: " + generatedPassword + "\n\n"
+                + "Please log in and change your password immediately.";
+        String htmlBody = buildEmailTemplate(
+                "Vice Manager Account Created",
+                "Hello " + escapeHtml(recipientName) + ",",
+                "<p style=\"margin:0 0 14px;\">You have been appointed as Vice Manager for <strong>"
+                        + escapeHtml(subOrgName) + "</strong>.</p>"
+                        + "<p style=\"margin:0 0 14px;\"><strong>Temporary password:</strong> "
+                        + escapeHtml(generatedPassword) + "</p>"
+                        + "<p style=\"margin:0;\">Please log in to manage your branch's performance and attendance reports.</p>"
+        );
+
+        sendEmail(recipientEmail, "Your AfroDebab Vice Manager account", plainBody, htmlBody, "Failed to send vice manager welcome email");
+    }
+
     public void sendAdminPayrollReminderEmail(String recipientEmail, String recipientName, int dueCount) {
         String plainBody = "Hello " + recipientName + ",\n\n"
                 + "Payroll reminder: " + dueCount + " employee payment(s) are due soon or overdue.\n"

@@ -13,6 +13,7 @@ public record HireCandidateRequest(
         String phone,
         @NotBlank(message = "position is required")
         String position,
+        Long subOrganizationId,
         @NotNull(message = "salaryDate is required")
         LocalDate salaryDate,
         @NotNull(message = "salaryAmountMinor is required")

@@ -13,6 +13,11 @@ public record EmployeeAttendanceResponse(
         Instant lunchBreakInAt,
         Instant lunchBreakOutAt,
         Map<String, String> attendanceStatus,
+        Double clockInLat,
+        Double clockInLng,
+        Double clockInDistanceM,
+        String geoStatus,
+        String subOrganizationName,
         String notes,
         Instant createdAt,
         Instant updatedAt

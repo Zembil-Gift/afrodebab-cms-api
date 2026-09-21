@@ -22,12 +22,13 @@ public class BlogAdminController {
 
     // Tenant-scoped: returns only the logged-in manager's org blogs (all statuses).
     @GetMapping
-    public Page<BlogAdminResponse> list(@RequestParam(defaultValue = "0") int page,
+    public Page<BlogAdminResponse> list(@RequestParam(required = false) Long subOrganizationId,
+                                        @RequestParam(defaultValue = "0") int page,
                                         @RequestParam(defaultValue = "10") int size,
                                         @RequestParam(defaultValue = "createdAt") String sortBy,
                                         @RequestParam(defaultValue = "desc") String direction) {
         var dir = "asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        return service.listAllAdmin(PageRequest.of(page, size, Sort.by(dir, sortBy)));
+        return service.listAllAdmin(PageRequest.of(page, size, Sort.by(dir, sortBy)), subOrganizationId);
     }
 
     @GetMapping("/{id}")

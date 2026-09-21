@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Optional<Employee> findByEmailIgnoreCase(String email);
@@ -18,6 +19,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findAllByActiveTrueAndSalaryEffectiveDateIsNotNullAndSalaryAmountMinorIsNotNull();
     List<Employee> findAllByActiveTrueOrderByNameAsc();
     List<Employee> findAllByActiveTrueAndIdNotOrderByNameAsc(Long id);
+    long countBySubOrganizationId(Long subOrganizationId);
+
+    @Query("SELECT e.id FROM Employee e WHERE e.subOrganization.id = :subOrganizationId")
+    Set<Long> findIdsBySubOrganizationId(@Param("subOrganizationId") Long subOrganizationId);
+    Page<Employee> findAllBySubOrganizationId(Long subOrganizationId, Pageable pageable);
+    List<Employee> findAllByActiveTrueAndSubOrganizationIdOrderByNameAsc(Long subOrganizationId);
+    List<Employee> findAllByActiveTrueAndSubOrganizationIdAndIdNotOrderByNameAsc(Long subOrganizationId, Long id);
 
     @Query("""
             SELECT e FROM Employee e
@@ -38,99 +46,41 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
             @Param("periodEnd") LocalDate periodEnd
     );
 
-    @Query(
-            value = """
-                    select *
-                    from employees e
-                    where (:department is null or lower(cast(e.department as text)) = lower(cast(:department as text)))
-                      and (:role is null or lower(cast(e.role as text)) = lower(cast(:role as text)))
-                    /*#pageable*/
-                    """,
-            countQuery = """
-                    select count(*)
-                    from employees e
-                    where (:department is null or lower(cast(e.department as text)) = lower(cast(:department as text)))
-                      and (:role is null or lower(cast(e.role as text)) = lower(cast(:role as text)))
-                    """,
-            nativeQuery = true
-    )
+    // JPQL (not native) so the @TenantId filter applies. department/role must be lower-cased by
+    // the caller: lower(:param) on a null binds as bytea in Postgres.
+    @Query("""
+            SELECT e FROM Employee e
+            WHERE (:department IS NULL OR lower(e.department) = :department)
+              AND (:role IS NULL OR lower(e.role) = :role)
+              AND (:subOrganizationId IS NULL OR e.subOrganization.id = :subOrganizationId)
+            """)
     Page<Employee> findAllByDepartmentAndRole(
             @Param("department") String department,
             @Param("role") String role,
+            @Param("subOrganizationId") Long subOrganizationId,
             Pageable pageable
     );
 
-    @Query(
-            value = """
-                    select *
-                    from employees e
-                    where e.github_username is not null
-                      and btrim(e.github_username) <> ''
-                    /*#pageable*/
-                    """,
-            countQuery = """
-                    select count(*)
-                    from employees e
-                    where e.github_username is not null
-                      and btrim(e.github_username) <> ''
-                    """,
-            nativeQuery = true
-    )
+    // JPQL (not native) so the @TenantId filter applies; native SQL returned other orgs' employees.
+    @Query("SELECT e FROM Employee e WHERE (e.githubUsername IS NOT NULL AND trim(e.githubUsername) <> '')")
     Page<Employee> findAllWithGithubUsername(Pageable pageable);
 
-    @Query(
-            value = """
-                    select *
-                    from employees e
-                    where e.trello_username is not null
-                      and btrim(e.trello_username) <> ''
-                    /*#pageable*/
-                    """,
-            countQuery = """
-                    select count(*)
-                    from employees e
-                    where e.trello_username is not null
-                      and btrim(e.trello_username) <> ''
-                    """,
-            nativeQuery = true
-    )
+    @Query("SELECT e FROM Employee e WHERE (e.trelloUsername IS NOT NULL AND trim(e.trelloUsername) <> '')")
     Page<Employee> findAllWithTrelloUsername(Pageable pageable);
 
-    @Query(
-            value = """
-                    select *
-                    from employees e
-                    where e.telegram_username is not null
-                      and btrim(e.telegram_username) <> ''
-                    /*#pageable*/
-                    """,
-            countQuery = """
-                    select count(*)
-                    from employees e
-                    where e.telegram_username is not null
-                      and btrim(e.telegram_username) <> ''
-                    """,
-            nativeQuery = true
-    )
-    Page<Employee> findAllWithTelegramUsername(Pageable pageable);
+    @Query("""
+            SELECT e FROM Employee e
+            WHERE (e.telegramUsername IS NOT NULL AND trim(e.telegramUsername) <> '')
+              AND (:subOrganizationId IS NULL OR e.subOrganization.id = :subOrganizationId)
+            """)
+    Page<Employee> findAllWithTelegramUsername(@Param("subOrganizationId") Long subOrganizationId, Pageable pageable);
 
-    @Query(
-            value = """
-                    select *
-                    from employees e
-                    where (e.github_username is not null and btrim(e.github_username) <> '')
-                       or (e.trello_username is not null and btrim(e.trello_username) <> '')
-                       or (e.telegram_username is not null and btrim(e.telegram_username) <> '')
-                    /*#pageable*/
-                    """,
-            countQuery = """
-                    select count(*)
-                    from employees e
-                    where (e.github_username is not null and btrim(e.github_username) <> '')
-                       or (e.trello_username is not null and btrim(e.trello_username) <> '')
-                       or (e.telegram_username is not null and btrim(e.telegram_username) <> '')
-                    """,
-            nativeQuery = true
-    )
-    Page<Employee> findAllWithConnectedAccounts(Pageable pageable);
+    @Query("""
+            SELECT e FROM Employee e
+            WHERE ((e.githubUsername IS NOT NULL AND trim(e.githubUsername) <> '')
+               OR (e.trelloUsername IS NOT NULL AND trim(e.trelloUsername) <> '')
+               OR (e.telegramUsername IS NOT NULL AND trim(e.telegramUsername) <> ''))
+              AND (:subOrganizationId IS NULL OR e.subOrganization.id = :subOrganizationId)
+            """)
+    Page<Employee> findAllWithConnectedAccounts(@Param("subOrganizationId") Long subOrganizationId, Pageable pageable);
 }

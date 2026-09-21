@@ -16,6 +16,8 @@ public record EventResponse(
         String coverImageUrl,
         Instant endDate,
         String registrationUrl,
-        Event.Status status
+        Event.Status status,
+        Long subOrganizationId,
+        String subOrganizationName
 ) {}
 

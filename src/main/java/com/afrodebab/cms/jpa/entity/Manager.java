@@ -38,6 +38,20 @@ public class Manager extends TenantEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    public enum ManagerRole {
+        MANAGER,
+        VICE_MANAGER
+    }
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false)
+    @Builder.Default
+    private ManagerRole role = ManagerRole.MANAGER;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sub_organization_id")
+    private SubOrganization subOrganization;
+
     /** This manager's personal Trello token, encrypted at rest. Null until they connect. */
     @Column(name = "trello_token", columnDefinition = "TEXT")
     private String trelloToken;

@@ -29,12 +29,22 @@ public class JwtService {
      *              scoped to their org. Null for platform admins (global, no org).
      */
     public String generateToken(String subjectEmail, String role, Long orgId) {
+        return generateToken(subjectEmail, role, orgId, null);
+    }
+
+    /**
+     * @param orgId the caller's organization id, baked into the token so every request is
+     *              scoped to their org. Null for platform admins (global, no org).
+     * @param subOrgId the caller's sub-organization id (if Vice Manager), null otherwise.
+     */
+    public String generateToken(String subjectEmail, String role, Long orgId, Long subOrgId) {
         Instant now = Instant.now();
         Instant exp = now.plus(expiresMinutes, ChronoUnit.MINUTES);
 
         var claims = new java.util.HashMap<String, Object>();
         claims.put("role", role);
         if (orgId != null) claims.put("orgId", orgId);
+        if (subOrgId != null) claims.put("subOrgId", subOrgId);
 
         return Jwts.builder()
                 .subject(subjectEmail)
@@ -74,5 +84,17 @@ public class JwtService {
                 .get("orgId");
         if (orgId == null) return null;
         return Long.valueOf(orgId.toString());
+    }
+
+    /** The sub-organization id baked into the token for Vice Managers, or null otherwise. */
+    public Long extractSubOrgId(String token) {
+        Object subOrgId = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("subOrgId");
+        if (subOrgId == null) return null;
+        return Long.valueOf(subOrgId.toString());
     }
 }

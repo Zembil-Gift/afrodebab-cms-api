@@ -85,7 +85,8 @@ public class EmployeeSelfController {
 
     @PostMapping("/clock-in")
     public EmployeeAttendanceResponse clockIn(@Valid @RequestBody EmployeeAttendanceEmailRequest req) {
-        return scopedByEmail(req.email(), attendanceService::clockIn);
+        Long orgId = attendanceService.resolveOrganizationIdByEmail(req.email());
+        return TenantContext.callAs(orgId, () -> attendanceService.clockIn(req.email(), req.latitude(), req.longitude()));
     }
 
     @PostMapping("/clock-out")

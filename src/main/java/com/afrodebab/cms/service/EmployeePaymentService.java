@@ -44,12 +44,30 @@ public class EmployeePaymentService {
 
     @Transactional
     public List<EmployeePaymentResponse> getDuePaymentsForAdmin() {
+        return getDuePaymentsForAdmin(null);
+    }
+
+    @Transactional
+    public List<EmployeePaymentResponse> getDuePaymentsForAdmin(Long subOrganizationId) {
         generatePendingPaymentsForCurrentCycles();
         LocalDate cutoff = LocalDate.now(ZoneOffset.UTC).plusDays(DUE_WINDOW_DAYS);
         return employeePaymentRepo.findAllByStatusAndDueDateLessThanEqualOrderByDueDateAsc(EmployeePayment.PaymentStatus.PENDING, cutoff)
                 .stream()
+                .filter(p -> inSubOrganization(p, subOrganizationId))
                 .map(this::toResponse)
                 .toList();
+    }
+
+    /** Vice-manager variant: only payments of employees in their own branch may be settled. */
+    @Transactional
+    public EmployeePaymentResponse markPaymentAsPaid(Long paymentId, MarkEmployeePaymentPaidRequest req,
+                                                     Long subOrganizationId) {
+        EmployeePayment payment = employeePaymentRepo.findById(paymentId)
+                .orElseThrow(() -> new NotFoundException("Payment not found"));
+        if (!inSubOrganization(payment, subOrganizationId)) {
+            throw new BadRequestException("Payment does not belong to your sub-organization");
+        }
+        return markPaymentAsPaid(paymentId, req);
     }
 
     @Transactional
@@ -120,9 +138,22 @@ public class EmployeePaymentService {
 
     @Transactional(readOnly = true)
     public List<EmployeePaymentResponse> getPaidPaymentsForAdmin() {
+        return getPaidPaymentsForAdmin(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<EmployeePaymentResponse> getPaidPaymentsForAdmin(Long subOrganizationId) {
         return employeePaymentRepo.findAllByStatusOrderByPaidAtDescDueDateDesc(EmployeePayment.PaymentStatus.PAID)
                 .stream()
+                .filter(p -> inSubOrganization(p, subOrganizationId))
                 .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<EmployeePaymentResponse> getPaidPaymentsForAdminByYearAndMonth(int year, int month, Long subOrganizationId) {
+        return getPaidPaymentsForAdminByYearAndMonth(year, month).stream()
+                .filter(p -> subOrganizationId == null || subOrganizationId.equals(p.subOrganizationId()))
                 .toList();
     }
 
@@ -212,11 +243,26 @@ public class EmployeePaymentService {
         }
     }
 
+    /** null subOrganizationId means no branch filter. */
+    private static boolean inSubOrganization(EmployeePayment payment, Long subOrganizationId) {
+        if (subOrganizationId == null) return true;
+        Employee employee = payment.getEmployee();
+        return employee != null && employee.getSubOrganization() != null
+                && subOrganizationId.equals(employee.getSubOrganization().getId());
+    }
+
     private EmployeePaymentResponse toResponse(EmployeePayment payment) {
+        Long subOrgId = (payment.getEmployee() != null && payment.getEmployee().getSubOrganization() != null)
+                ? payment.getEmployee().getSubOrganization().getId() : null;
+        String subOrgName = (payment.getEmployee() != null && payment.getEmployee().getSubOrganization() != null)
+                ? payment.getEmployee().getSubOrganization().getName() : null;
+
         return new EmployeePaymentResponse(
                 payment.getId(),
                 payment.getEmployee().getId(),
                 payment.getEmployee().getName(),
+                subOrgId,
+                subOrgName,
                 payment.getCycleStartDate(),
                 payment.getDueDate(),
                 payment.getAmountMinor(),

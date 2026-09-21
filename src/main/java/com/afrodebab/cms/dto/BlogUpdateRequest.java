@@ -8,5 +8,6 @@ public record BlogUpdateRequest(
         String excerpt,
         String content,
         String coverImageUrl,
-        Blog.Status status
+        Blog.Status status,
+        Long subOrganizationId
 ) {}

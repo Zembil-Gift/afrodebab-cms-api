@@ -246,6 +246,11 @@ public class PeerReviewService {
 
     @Transactional(readOnly = true)
     public PeerReviewPeriodResultsResponse getPeriodResults(Long periodId) {
+        return getPeriodResults(periodId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PeerReviewPeriodResultsResponse getPeriodResults(Long periodId, Long subOrganizationId) {
         PeerReviewPeriod period = peerReviewPeriodRepository.findById(periodId)
                 .orElseThrow(() -> new NotFoundException("Peer review period not found"));
         validatePeriod(period.getPeriodStart(), period.getPeriodEnd());
@@ -257,6 +262,12 @@ public class PeerReviewService {
         Map<Long, EmployeeAggregate> aggregates = buildAggregates(reviews);
 
         List<Employee> employees = resolveEmployeesForAdmin(reviews);
+        if (subOrganizationId != null) {
+            employees = employees.stream()
+                    .filter(e -> e.getSubOrganization() != null && e.getSubOrganization().getId().equals(subOrganizationId))
+                    .toList();
+        }
+
         List<PeerReviewEmployeeResultsResponse> results = employees.stream()
                 .map(employee -> toEmployeeResults(employee, aggregates, listActivePrincipleEntities(), reviews))
                 .toList();
@@ -340,6 +351,26 @@ public class PeerReviewService {
 
         return employees.stream()
                 .map(this::toAvailableEmployeeResponse)
+                .toList();
+    }
+
+    /** Same as {@link #listByPeriod(LocalDate, LocalDate, Long)}, limited to one branch's reviewees. */
+    @Transactional(readOnly = true)
+    public List<PeerReviewResponse> listByPeriod(LocalDate periodStart, LocalDate periodEnd, Long revieweeId,
+                                                 Long subOrganizationId) {
+        Set<Long> branch = employeeRepository.findIdsBySubOrganizationId(subOrganizationId);
+        return listByPeriod(periodStart, periodEnd, revieweeId).stream()
+                .filter(r -> branch.contains(r.revieweeId()))
+                .toList();
+    }
+
+    /** Same as {@link #summarizeByEmployee(LocalDate, LocalDate, Long)}, limited to one branch. */
+    @Transactional(readOnly = true)
+    public List<PeerReviewEmployeeSummaryResponse> summarizeByEmployee(LocalDate periodStart, LocalDate periodEnd,
+                                                                      Long revieweeId, Long subOrganizationId) {
+        Set<Long> branch = employeeRepository.findIdsBySubOrganizationId(subOrganizationId);
+        return summarizeByEmployee(periodStart, periodEnd, revieweeId).stream()
+                .filter(s -> branch.contains(s.employeeId()))
                 .toList();
     }
 
@@ -582,12 +613,17 @@ public class PeerReviewService {
                 .map(String::trim)
                 .toList();
 
+        Long subOrgId = employee.getSubOrganization() != null ? employee.getSubOrganization().getId() : null;
+        String subOrgName = employee.getSubOrganization() != null ? employee.getSubOrganization().getName() : null;
+
         return new PeerReviewEmployeeResultsResponse(
                 employee.getId(),
                 employee.getName(),
                 employee.getDepartment(),
                 employee.getRole(),
                 employee.getEmploymentType(),
+                subOrgId,
+                subOrgName,
                 leadershipScore,
                 averages,
                 comments

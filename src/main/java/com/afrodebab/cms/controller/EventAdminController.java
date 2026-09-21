@@ -21,12 +21,13 @@ public class EventAdminController {
 
     // Tenant-scoped: returns only the logged-in manager's org events (all statuses).
     @GetMapping
-    public Page<EventResponse> list(@RequestParam(defaultValue = "0") int page,
+    public Page<EventResponse> list(@RequestParam(required = false) Long subOrganizationId,
+                                    @RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "10") int size,
                                     @RequestParam(defaultValue = "startDate") String sortBy,
                                     @RequestParam(defaultValue = "desc") String direction) {
         var dir = "asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        return service.listAllAdmin(PageRequest.of(page, size, Sort.by(dir, sortBy)));
+        return service.listAllAdmin(PageRequest.of(page, size, Sort.by(dir, sortBy)), subOrganizationId);
     }
 
     @GetMapping("/{id}") public EventResponse get(@PathVariable Long id) { return service.getOne(id); }

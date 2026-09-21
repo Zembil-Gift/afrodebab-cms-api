@@ -67,8 +67,19 @@ public class MetricsService {
                                                                       String role,
                                                                       Pageable pageable,
                                                                       boolean persistSnapshot) {
+        return getEmployeeMetricsPage(periodStart, periodEnd, department, role, null, pageable, persistSnapshot);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EmployeeMetricSummaryResponse> getEmployeeMetricsPage(LocalDate periodStart,
+                                                                      LocalDate periodEnd,
+                                                                      String department,
+                                                                      String role,
+                                                                      Long subOrganizationId,
+                                                                      Pageable pageable,
+                                                                      boolean persistSnapshot) {
         validatePeriod(periodStart, periodEnd);
-        return employeeRepository.findAllByDepartmentAndRole(department, role, pageable)
+        return employeeRepository.findAllByDepartmentAndRole(lowerOrNull(department), lowerOrNull(role), subOrganizationId, pageable)
                 .map(employee -> computeAndOptionallyPersist(employee, periodStart, periodEnd, persistSnapshot));
     }
 
@@ -119,6 +130,9 @@ public class MetricsService {
             employeeMetricScoreRepository.save(snapshot);
         }
 
+        Long subOrgId = employee.getSubOrganization() != null ? employee.getSubOrganization().getId() : null;
+        String subOrgName = employee.getSubOrganization() != null ? employee.getSubOrganization().getName() : null;
+
         return new EmployeeMetricSummaryResponse(
                 employee.getId(),
                 employee.getName(),
@@ -126,6 +140,8 @@ public class MetricsService {
                 employee.getDepartment(),
                 employee.getEmploymentType(),
                 employee.getEmployeeStatus(),
+                subOrgId,
+                subOrgName,
                 periodStart,
                 periodEnd,
                 leadershipScore,
@@ -363,4 +379,9 @@ public class MetricsService {
             throw new BadRequestException("periodEnd must be on or after periodStart");
         }
     }
+
+    private static String lowerOrNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
 }

@@ -20,13 +20,13 @@ public class EmployeePaymentAdminController {
     }
 
     @GetMapping("/due")
-    public List<EmployeePaymentResponse> duePayments() {
-        return employeePaymentService.getDuePaymentsForAdmin();
+    public List<EmployeePaymentResponse> duePayments(@RequestParam(required = false) Long subOrganizationId) {
+        return employeePaymentService.getDuePaymentsForAdmin(subOrganizationId);
     }
 
     @GetMapping("/paid")
-    public List<EmployeePaymentResponse> paidPayments() {
-        return employeePaymentService.getPaidPaymentsForAdmin();
+    public List<EmployeePaymentResponse> paidPayments(@RequestParam(required = false) Long subOrganizationId) {
+        return employeePaymentService.getPaidPaymentsForAdmin(subOrganizationId);
     }
 
     @GetMapping("/paid/filter")

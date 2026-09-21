@@ -48,6 +48,7 @@ public class SecurityConfig {
                         // auth logins must be public
                         .requestMatchers("/admin/auth/**").permitAll()
                         .requestMatchers("/manager/auth/**").permitAll()
+                        .requestMatchers("/vice-manager/auth/**").permitAll()
                         .requestMatchers("/employee/auth/**").permitAll()
 
                         // anonymous, org-scoped public content (blog/events/jobs/apply)
@@ -69,6 +70,8 @@ public class SecurityConfig {
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         // per-org management (formerly /admin/**)
                         .requestMatchers("/manager/**").hasRole("MANAGER")
+                        // vice manager (sub-org scoped management)
+                        .requestMatchers("/vice-manager/**").hasRole("VICE_MANAGER")
                         // employee self-service
                         .requestMatchers("/employee/me/**").hasRole("EMPLOYEE")
 

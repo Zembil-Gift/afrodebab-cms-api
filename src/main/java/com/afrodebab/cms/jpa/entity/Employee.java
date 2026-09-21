@@ -61,6 +61,10 @@ public class Employee extends com.afrodebab.cms.tenant.TenantEntity {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "sub_organization_id", nullable = false)
+    private SubOrganization subOrganization;
+
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 

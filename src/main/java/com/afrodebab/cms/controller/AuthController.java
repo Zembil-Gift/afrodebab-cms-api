@@ -22,7 +22,7 @@ import java.util.Locale;
 
 @Tag(name = "Manager - Auth")
 @RestController
-@RequestMapping("/manager/auth")
+@RequestMapping({"/manager/auth", "/vice-manager/auth"})
 public class AuthController {
 
     private final JwtService jwtService;
@@ -52,7 +52,11 @@ public class AuthController {
             manager.setLastLoginAt(Instant.now());
             managerRepo.save(manager);
 
-            String token = jwtService.generateToken(normalizedEmail, "MANAGER", manager.getOrganizationId());
+            String jwtRole = manager.getRole() == Manager.ManagerRole.VICE_MANAGER ? "VICE_MANAGER" : "MANAGER";
+            Long subOrgId = (manager.getRole() == Manager.ManagerRole.VICE_MANAGER && manager.getSubOrganization() != null)
+                    ? manager.getSubOrganization().getId() : null;
+
+            String token = jwtService.generateToken(normalizedEmail, jwtRole, manager.getOrganizationId(), subOrgId);
             return new LoginResponse(token);
         });
     }

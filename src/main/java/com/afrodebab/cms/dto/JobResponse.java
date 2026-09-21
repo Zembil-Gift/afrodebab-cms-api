@@ -14,5 +14,7 @@ public record JobResponse(
         String location,
         String description,
         Job.Status status,
-        Instant createdAt
+        Instant createdAt,
+        Long subOrganizationId,
+        String subOrganizationName
 ) {}

@@ -17,6 +17,7 @@ public record EventCreateRequest(
         Instant endDate,
         String registrationUrl,
         String coverImageUrl,
-        Event.Status status
+        Event.Status status,
+        Long subOrganizationId
 ) {}
 

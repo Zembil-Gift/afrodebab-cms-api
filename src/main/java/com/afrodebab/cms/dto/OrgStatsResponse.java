@@ -11,6 +11,8 @@ public record OrgStatsResponse(
         String plan,
         Instant createdAt,
         long managers,
+        long viceManagers,
+        long subOrganizations,
         long employees,
         long jobs,
         long openJobs,
