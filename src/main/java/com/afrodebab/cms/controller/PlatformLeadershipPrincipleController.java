@@ -16,30 +16,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@Tag(name = "Manager - Leadership Principles")
+@Tag(name = "Platform Admin - Leadership Principles")
 @RestController
-@RequestMapping("/manager/metrics/peer-reviews/principles")
-public class LeadershipPrincipleAdminController {
+@RequestMapping("/admin/principles")
+public class PlatformLeadershipPrincipleController {
 
     private final LeadershipPrincipleService service;
 
-    public LeadershipPrincipleAdminController(LeadershipPrincipleService service) {
+    public PlatformLeadershipPrincipleController(LeadershipPrincipleService service) {
         this.service = service;
     }
 
     @GetMapping
     public List<LeadershipPrincipleResponse> list() {
         return service.listAll();
-    }
-
-    @GetMapping("/defaults")
-    public List<LeadershipPrincipleResponse> defaults() {
-        return service.listDefaults();
-    }
-
-    @PostMapping("/defaults")
-    public List<LeadershipPrincipleResponse> addDefaults() {
-        return service.addDefaults();
     }
 
     @PostMapping

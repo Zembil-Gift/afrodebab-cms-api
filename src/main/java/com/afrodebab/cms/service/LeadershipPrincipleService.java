@@ -12,20 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/** Per-organization CRUD for the principles peer reviews are rated against. */
+/**
+ * Platform-wide principles every organization's peer reviews are rated against. Managers and
+ * employees only read them; the platform admin owns create/update/delete.
+ */
 @Service
 public class LeadershipPrincipleService {
-
-    // The platform's starter set; an org opts in when it opens its first review period.
-    private static final List<List<String>> DEFAULT_PRINCIPLES = List.of(
-            List.of("Ownership & Accountability", "Takes responsibility, follows through, and proactively solves problems."),
-            List.of("Integrity & Transparency", "Acts with honesty, openness, and ethical behavior in all situations."),
-            List.of("Customer-Centered Thinking", "Prioritizes customer value and long-term trust."),
-            List.of("Bias for Action", "Executes decisively and avoids unnecessary delay."),
-            List.of("Continuous Growth", "Seeks feedback, learns quickly, and improves consistently."),
-            List.of("Team Collaboration", "Collaborates effectively and supports cross-team outcomes."),
-            List.of("Communication Discipline", "Communicates clearly, consistently, and with ownership.")
-    );
 
     private final LeadershipPrincipleRepository principleRepo;
     private final PeerReviewRepository peerReviewRepo;
@@ -39,13 +31,6 @@ public class LeadershipPrincipleService {
     @Transactional(readOnly = true)
     public List<LeadershipPrincipleResponse> listAll() {
         return principleRepo.findAllByOrderByIdAsc().stream().map(this::toResponse).toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<LeadershipPrincipleResponse> listDefaults() {
-        return DEFAULT_PRINCIPLES.stream()
-                .map(p -> new LeadershipPrincipleResponse(null, p.get(0), p.get(1), true))
-                .toList();
     }
 
     @Transactional
@@ -82,22 +67,12 @@ public class LeadershipPrincipleService {
     @Transactional
     public void delete(Long id) {
         LeadershipPrinciple principle = getEntityOrThrow(id);
-        if (peerReviewRepo.existsByPrincipleId(id)) {
+        if (peerReviewRepo.existsByPrincipleIdInAnyOrganization(id)) {
             principle.setActive(false);
             principleRepo.save(principle);
             return;
         }
         principleRepo.delete(principle);
-    }
-
-    /** Adds any default principle the org does not have yet (matched by name). */
-    @Transactional
-    public List<LeadershipPrincipleResponse> addDefaults() {
-        DEFAULT_PRINCIPLES.stream()
-                .filter(p -> !principleRepo.existsByNameIgnoreCase(p.get(0)))
-                .map(p -> LeadershipPrinciple.builder().name(p.get(0)).description(p.get(1)).active(true).build())
-                .forEach(principleRepo::save);
-        return listAll();
     }
 
     @Transactional(readOnly = true)

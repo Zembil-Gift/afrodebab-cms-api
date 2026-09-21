@@ -8,13 +8,14 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 
+/** Platform-wide: shared by every organization and managed by the platform admin. */
 @Data
 @Entity
 @Table(name = "leadership_principles")
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LeadershipPrinciple extends com.afrodebab.cms.tenant.TenantEntity {
+public class LeadershipPrinciple {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
