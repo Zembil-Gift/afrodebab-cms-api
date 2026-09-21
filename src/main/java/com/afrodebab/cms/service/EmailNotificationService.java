@@ -5,6 +5,7 @@ import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.EmailNotification;
 import com.afrodebab.cms.jpa.repository.EmailNotificationRepository;
+import com.afrodebab.cms.security.TokenCipher;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
@@ -24,10 +25,17 @@ public class EmailNotificationService {
     private final EmailNotificationRepository emailNotificationRepo;
     private final SendGridEmailService sendGridEmailService;
     private final ObjectMapper objectMapper;
+    private final TokenCipher tokenCipher;
+
+    // Marks an encrypted password in a queued payload; sent payloads keep only REDACTED.
+    private static final String ENCRYPTED_PREFIX = "enc:";
+    private static final String REDACTED = "[redacted]";
 
     public EmailNotificationService(EmailNotificationRepository emailNotificationRepo,
                                     SendGridEmailService sendGridEmailService,
-                                    ObjectMapper objectMapper) {
+                                    ObjectMapper objectMapper,
+                                    TokenCipher tokenCipher) {
+        this.tokenCipher = tokenCipher;
         this.emailNotificationRepo = emailNotificationRepo;
         this.sendGridEmailService = sendGridEmailService;
         this.objectMapper = objectMapper;
@@ -39,7 +47,7 @@ public class EmailNotificationService {
                 EmailNotification.NotificationType.EMPLOYEE_PASSWORD,
                 recipientEmail,
                 "Your AfroDebab employee account",
-                new EmployeePasswordPayload(recipientName, generatedPassword)
+                new EmployeePasswordPayload(recipientName, protectPassword(generatedPassword))
         );
     }
 
@@ -169,6 +177,7 @@ public class EmailNotificationService {
 
         try {
             sendByType(notification);
+            redactPasswordAfterSend(notification);
             notification.setStatus(EmailNotification.DeliveryStatus.SENT);
             notification.setSentAt(Instant.now());
             notification.setLastError(null);
@@ -187,7 +196,7 @@ public class EmailNotificationService {
                 sendGridEmailService.sendEmployeePasswordEmail(
                         notification.getRecipientEmail(),
                         payload.recipientName(),
-                        payload.generatedPassword()
+                        revealPassword(payload.generatedPassword())
                 );
             }
             case ADMIN_PAYROLL_REMINDER -> {
@@ -240,6 +249,29 @@ public class EmailNotificationService {
                         payload.jobTitle()
                 );
             }
+        }
+    }
+
+    // Passwords are only needed until the email goes out; encrypt them while queued.
+    private String protectPassword(String password) {
+        return tokenCipher.isConfigured() ? ENCRYPTED_PREFIX + tokenCipher.encrypt(password) : password;
+    }
+
+    private String revealPassword(String stored) {
+        if (REDACTED.equals(stored)) {
+            throw new BadRequestException("Password was already delivered and redacted; reset the password instead");
+        }
+        return stored.startsWith(ENCRYPTED_PREFIX) ? tokenCipher.decrypt(stored.substring(ENCRYPTED_PREFIX.length())) : stored;
+    }
+
+    private void redactPasswordAfterSend(EmailNotification notification) {
+        if (notification.getType() != EmailNotification.NotificationType.EMPLOYEE_PASSWORD) return;
+        EmployeePasswordPayload payload = readPayload(notification, EmployeePasswordPayload.class);
+        try {
+            notification.setPayload(objectMapper.writeValueAsString(
+                    new EmployeePasswordPayload(payload.recipientName(), REDACTED)));
+        } catch (JsonProcessingException ex) {
+            throw new RuntimeException("Failed to redact email payload", ex);
         }
     }
 
