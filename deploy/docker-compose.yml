@@ -1,7 +1,7 @@
 # Lives at /opt/afrodebab-cms on the VPS. Images come from GHCR; nothing is built here.
 #
 # No public port. Caddy (reverse-proxy repo) reaches the API as
-# afrodebab-api:8080 over the shared `zembil` network and serves it on
+# afrodebab-api:$PORT over the shared `zembil` network and serves it on
 # internal-tool.gogerami-api.online.
 #
 # Service names are prefixed because every name on `zembil` is a DNS name for
@@ -16,6 +16,9 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # Read by pg_isready and psql inside the container.
+      PGPORT: ${DB_PORT}
+    command: ["postgres", "-p", "${DB_PORT}"]
     volumes:
       # postgres:18+ keeps the cluster in a versioned subdirectory of this path.
       - pgdata:/var/lib/postgresql
@@ -38,7 +41,7 @@ services:
     profiles: [migrate]
     command: migrate
     environment:
-      FLYWAY_URL: jdbc:postgresql://afrodebab-db:5432/${DB_NAME}
+      FLYWAY_URL: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
       FLYWAY_USER: ${DB_USERNAME}
       FLYWAY_PASSWORD: ${DB_PASSWORD}
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
@@ -53,20 +56,17 @@ services:
   afrodebab-api:
     image: ghcr.io/zembil-gift/afrodebab-cms-api:${IMAGE_TAG}
     restart: unless-stopped
+    # DB_HOST must be afrodebab-db and SSL_MODE disable; PORT and DB_PORT are free.
     env_file: .env
-    environment:
-      DB_HOST: afrodebab-db
-      DB_PORT: 5432
-      SSL_MODE: disable
     depends_on:
       afrodebab-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/actuator/health"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:${PORT}/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-      # Flyway runs on boot; give the first migration room.
+      # Spring Boot + Hibernate schema validation on a 2-vCPU box is slow to boot.
       start_period: 120s
     networks: [internal, zembil]
 

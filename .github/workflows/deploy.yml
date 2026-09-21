@@ -38,7 +38,7 @@ jobs:
       # container at boot, and we would only learn that from a failed healthcheck.
       - name: Check /opt/afrodebab-cms/.env has every required var
         run: |
-          required=$(printf '%s\n' IMAGE_TAG DB_NAME DB_USERNAME DB_PASSWORD APP_JWT_SECRET | sort)
+          required=$(printf '%s\n' IMAGE_TAG PORT DB_HOST DB_PORT DB_NAME DB_USERNAME DB_PASSWORD APP_JWT_SECRET | sort)
           present=$(ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$VPS_USER@$HOST" \
             'sed -n "s/^\([A-Z0-9_]\+\)=..*/\1/p" /opt/afrodebab-cms/.env | sort -u')
           missing=$(comm -23 <(echo "$required") <(echo "$present"))
