@@ -29,5 +29,7 @@ public interface PeerReviewRepository extends JpaRepository<PeerReview, Long> {
 
     List<PeerReview> findAllByReviewerId(Long reviewerId);
 
+    boolean existsByPrincipleId(Long principleId);
+
     List<PeerReview> findAllByRevieweeId(Long revieweeId);
 }

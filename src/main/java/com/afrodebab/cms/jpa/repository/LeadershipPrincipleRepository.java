@@ -8,4 +8,6 @@ import java.util.List;
 public interface LeadershipPrincipleRepository extends JpaRepository<LeadershipPrinciple, Long> {
     List<LeadershipPrinciple> findAllByActiveTrueOrderByIdAsc();
     long countByActiveTrue();
+    List<LeadershipPrinciple> findAllByOrderByIdAsc();
+    boolean existsByNameIgnoreCase(String name);
 }

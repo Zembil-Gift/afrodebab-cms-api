@@ -43,11 +43,14 @@ public class PeerReviewService {
     private final LeadershipPrincipleRepository leadershipPrincipleRepository;
     private final EmployeeRepository employeeRepository;
     private final PeerReviewPeriodRepository peerReviewPeriodRepository;
+    private final LeadershipPrincipleService leadershipPrincipleService;
 
     public PeerReviewService(PeerReviewRepository peerReviewRepository,
                              LeadershipPrincipleRepository leadershipPrincipleRepository,
                              EmployeeRepository employeeRepository,
-                             PeerReviewPeriodRepository peerReviewPeriodRepository) {
+                             PeerReviewPeriodRepository peerReviewPeriodRepository,
+                             LeadershipPrincipleService leadershipPrincipleService) {
+        this.leadershipPrincipleService = leadershipPrincipleService;
         this.peerReviewRepository = peerReviewRepository;
         this.leadershipPrincipleRepository = leadershipPrincipleRepository;
         this.employeeRepository = employeeRepository;
@@ -147,6 +150,11 @@ public class PeerReviewService {
                     peerReviewPeriodRepository.findByNameIgnoreCase(name).ifPresent(existing -> {
                         throw new BadRequestException("Peer review period name already exists");
                     });
+                    // A period rates against whatever principles are active when it opens.
+                    if (leadershipPrincipleService.countActive() == 0) {
+                        throw new BadRequestException(
+                                "Add at least one active rating principle before creating a review period");
+                    }
 
                     PeerReviewPeriod period = new PeerReviewPeriod();
                     period.setPeriodStart(request.periodStart());
