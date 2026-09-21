@@ -1,0 +1,81 @@
+# Lives at /opt/afrodebab-cms on the VPS. Images come from GHCR; nothing is built here.
+#
+# No public port. Caddy (reverse-proxy repo) reaches the API as
+# afrodebab-api:8080 over the shared `zembil` network and serves it on
+# internal-tool.gogerami-api.online.
+#
+# Service names are prefixed because every name on `zembil` is a DNS name for
+# every stack on it -- a plain `postgres` here would collide with zembil's.
+name: afrodebab-cms
+
+services:
+  afrodebab-db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      # postgres:18+ keeps the cluster in a versioned subdirectory of this path.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Private network only: the database is never on `zembil`, so no other
+    # stack (or the proxy) can reach it. Tunnel over SSH with
+    # `docker compose exec afrodebab-db psql` if you need a shell.
+    networks: [internal]
+
+  # One-shot, run by the deploy before the API starts. Mirrors the
+  # flyway-maven-plugin config in pom.xml; the app itself does not migrate
+  # (Boot 4 needs spring-boot-starter-flyway for that). Migrations are rsynced
+  # into ./migrations from src/main/resources/db/migration on every deploy.
+  flyway:
+    image: flyway/flyway:11.14.1
+    profiles: [migrate]
+    command: migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://afrodebab-db:5432/${DB_NAME}
+      FLYWAY_USER: ${DB_USERNAME}
+      FLYWAY_PASSWORD: ${DB_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+    volumes:
+      - ./migrations:/flyway/sql:ro
+    depends_on:
+      afrodebab-db:
+        condition: service_healthy
+    networks: [internal]
+
+  afrodebab-api:
+    image: ghcr.io/zembil-gift/afrodebab-cms-api:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: afrodebab-db
+      DB_PORT: 5432
+      SSL_MODE: disable
+    depends_on:
+      afrodebab-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      # Flyway runs on boot; give the first migration room.
+      start_period: 120s
+    networks: [internal, zembil]
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
+  # External and owned by nobody -- see the reverse-proxy repo.
+  zembil:
+    external: true
+    name: zembil
