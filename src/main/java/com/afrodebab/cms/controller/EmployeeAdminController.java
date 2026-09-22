@@ -53,7 +53,6 @@ public class EmployeeAdminController {
             @RequestParam(required = false) String photoUrl,
             @RequestParam(required = false) String githubUsername,
             @RequestParam(required = false) String trelloUsername,
-            @RequestParam(required = false) String telegramUsername,
             @RequestParam(required = false) Long subOrganizationId,
             @RequestParam(required = false) LocalDate salaryDate,
             @RequestParam(required = false) Long salaryAmountMinor,
@@ -75,7 +74,6 @@ public class EmployeeAdminController {
                 photoUrl,
                 githubUsername,
                 trelloUsername,
-                telegramUsername,
                 subOrganizationId,
                 salaryDate,
                 salaryAmountMinor,
@@ -128,21 +126,6 @@ public class EmployeeAdminController {
 
         var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
         return service.listWithTrelloUsername(pageable);
-    }
-
-    @GetMapping("/with-telegram")
-    public Page<EmployeeResponse> listWithTelegramUsername(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "name") String sortBy,
-            @RequestParam(defaultValue = "asc") String direction
-    ) {
-        var dir = "asc".equalsIgnoreCase(direction)
-                ? Sort.Direction.ASC
-                : Sort.Direction.DESC;
-
-        var pageable = PageRequest.of(page, size, Sort.by(dir, sortBy));
-        return service.listWithTelegramUsername(pageable);
     }
 
     @GetMapping("/connected-accounts")

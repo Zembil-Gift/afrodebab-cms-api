@@ -23,7 +23,6 @@ public record EmployeeCreateRequest(
         String photo,
         String githubUsername,
         String trelloUsername,
-        String telegramUsername,
         Long subOrganizationId,
         LocalDate salaryDate,
         @PositiveOrZero(message = "salaryAmountMinor must be zero or positive") Long salaryAmountMinor,

@@ -40,9 +40,6 @@ public class EmployeeMetricScore extends com.afrodebab.cms.tenant.TenantEntity {
     @Column(name = "task_score")
     private BigDecimal taskScore;
 
-    @Column(name = "support_score")
-    private BigDecimal supportScore;
-
     @Column(name = "overall_score")
     private BigDecimal overallScore;
 

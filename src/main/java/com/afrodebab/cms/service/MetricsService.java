@@ -1,7 +1,6 @@
 package com.afrodebab.cms.service;
 
 import com.afrodebab.cms.dto.EmployeeMetricSummaryResponse;
-import com.afrodebab.cms.dto.TelegramSupportReportResponse;
 import com.afrodebab.cms.dto.TrelloReportResponse;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
@@ -35,20 +34,17 @@ public class MetricsService {
     private final PeerReviewRepository peerReviewRepository;
     private final EmployeeMetricScoreRepository employeeMetricScoreRepository;
     private final TrelloTrackerService trelloTrackerService;
-    private final TelegramSupportTrackerService telegramSupportTrackerService;
 
     public MetricsService(EmployeeRepository employeeRepository,
                           EmployeeAttendanceRepository employeeAttendanceRepository,
                           PeerReviewRepository peerReviewRepository,
                           EmployeeMetricScoreRepository employeeMetricScoreRepository,
-                          TrelloTrackerService trelloTrackerService,
-                          TelegramSupportTrackerService telegramSupportTrackerService) {
+                          TrelloTrackerService trelloTrackerService) {
         this.employeeRepository = employeeRepository;
         this.employeeAttendanceRepository = employeeAttendanceRepository;
         this.peerReviewRepository = peerReviewRepository;
         this.employeeMetricScoreRepository = employeeMetricScoreRepository;
         this.trelloTrackerService = trelloTrackerService;
-        this.telegramSupportTrackerService = telegramSupportTrackerService;
     }
 
     @Transactional(readOnly = true)
@@ -110,11 +106,10 @@ public class MetricsService {
         BigDecimal leadershipScore = computeLeadershipScore(employee.getId(), periodStart, periodEnd);
         BigDecimal attendanceScore = computeAttendanceScore(employee, periodStart, periodEnd);
         BigDecimal taskScore = computeTaskScore(employee, periodStart, periodEnd);
-        BigDecimal supportScore = computeSupportScore(employee, periodStart, periodEnd);
-        BigDecimal overallScore = computeOverallScore(employee.getRole(), leadershipScore, attendanceScore, taskScore, supportScore);
+        BigDecimal overallScore = computeOverallScore(employee.getRole(), leadershipScore, attendanceScore, taskScore);
 
-        String strengthSummary = computeStrengthSummary(leadershipScore, attendanceScore, taskScore, supportScore);
-        String improvementSummary = computeImprovementSummary(leadershipScore, attendanceScore, taskScore, supportScore);
+        String strengthSummary = computeStrengthSummary(leadershipScore, attendanceScore, taskScore);
+        String improvementSummary = computeImprovementSummary(leadershipScore, attendanceScore, taskScore);
 
         if (persistSnapshot) {
             EmployeeMetricScore snapshot = new EmployeeMetricScore();
@@ -124,7 +119,6 @@ public class MetricsService {
             snapshot.setLeadershipScore(leadershipScore);
             snapshot.setAttendanceScore(attendanceScore);
             snapshot.setTaskScore(taskScore);
-            snapshot.setSupportScore(supportScore);
             snapshot.setOverallScore(overallScore);
             snapshot.setStrengthSummary(strengthSummary);
             snapshot.setImprovementSummary(improvementSummary);
@@ -148,7 +142,6 @@ public class MetricsService {
                 leadershipScore,
                 attendanceScore,
                 taskScore,
-                supportScore,
                 overallScore,
                 strengthSummary,
                 improvementSummary
@@ -240,30 +233,14 @@ public class MetricsService {
         return BigDecimal.valueOf(report.checkItemsCompleted());
     }
 
-    private BigDecimal computeSupportScore(Employee employee, LocalDate periodStart, LocalDate periodEnd) {
-        String telegramUsername = employee.getTelegramUsername();
-        if (telegramUsername == null || telegramUsername.isBlank()) {
-            return BigDecimal.ZERO;
-        }
-        TelegramSupportReportResponse report = telegramSupportTrackerService.getEmployeeReportByEmail(
-                employee.getEmail(), null, null, periodStart.toString(), periodEnd.toString()
-        );
-        if (report == null || report.totals() == null) {
-            return BigDecimal.ZERO;
-        }
-        return BigDecimal.valueOf(report.totals().resolved());
-    }
-
     private BigDecimal computeOverallScore(String role,
                                            BigDecimal leadershipScore,
                                            BigDecimal attendanceScore,
-                                           BigDecimal taskScore,
-                                           BigDecimal supportScore) {
+                                           BigDecimal taskScore) {
         Map<String, BigDecimal> scores = new HashMap<>();
         scores.put("leadership", leadershipScore);
         scores.put("attendance", attendanceScore);
         scores.put("task", taskScore);
-        scores.put("support", supportScore);
         scores.put("team", null);
 
         Map<String, Integer> weights = resolveWeights(role);
@@ -301,7 +278,6 @@ public class MetricsService {
         if ("CUSTOMER_SUPPORT".equals(normalizedRole)) {
             weights.put("leadership", 25);
             weights.put("attendance", 20);
-            weights.put("support", 45);
             weights.put("team", 10);
             return weights;
         }
@@ -314,9 +290,8 @@ public class MetricsService {
 
     private String computeStrengthSummary(BigDecimal leadership,
                                           BigDecimal attendance,
-                                          BigDecimal task,
-                                          BigDecimal support) {
-        Map<String, BigDecimal> components = componentScores(leadership, attendance, task, support);
+                                          BigDecimal task) {
+        Map<String, BigDecimal> components = componentScores(leadership, attendance, task);
         if (components.isEmpty()) {
             return null;
         }
@@ -333,9 +308,8 @@ public class MetricsService {
 
     private String computeImprovementSummary(BigDecimal leadership,
                                              BigDecimal attendance,
-                                             BigDecimal task,
-                                             BigDecimal support) {
-        Map<String, BigDecimal> components = componentScores(leadership, attendance, task, support);
+                                             BigDecimal task) {
+        Map<String, BigDecimal> components = componentScores(leadership, attendance, task);
         if (components.size() < 2) {
             return null;
         }
@@ -352,13 +326,11 @@ public class MetricsService {
 
     private Map<String, BigDecimal> componentScores(BigDecimal leadership,
                                                     BigDecimal attendance,
-                                                    BigDecimal task,
-                                                    BigDecimal support) {
+                                                    BigDecimal task) {
         Map<String, BigDecimal> scores = new HashMap<>();
         if (leadership != null) scores.put("Leadership", leadership);
         if (attendance != null) scores.put("Attendance", attendance);
         if (task != null) scores.put("Task", task);
-        if (support != null) scores.put("Support", support);
         return scores;
     }
 

@@ -81,7 +81,6 @@ public class EmployeeService {
         employee.setPhoto(req.photo());
         employee.setGithubUsername(req.githubUsername());
         employee.setTrelloUsername(req.trelloUsername());
-        employee.setTelegramUsername(req.telegramUsername());
         employee.setSubOrganization(resolveSubOrganization(req.subOrganizationId()));
         employee.setSalaryEffectiveDate(req.salaryDate());
         employee.setSalaryAmountMinor(req.salaryAmountMinor());
@@ -97,7 +96,7 @@ public class EmployeeService {
     @Transactional
     public EmployeeResponse createFromForm(String name, String email, String phone, String position,
                                            String role, String department, String employmentType, String employeeStatus,
-                                           String linkedinUrl, String photoUrl, String githubUsername, String trelloUsername, String telegramUsername,
+                                           String linkedinUrl, String photoUrl, String githubUsername, String trelloUsername,
                                            Long subOrganizationId, LocalDate salaryDate,
                                            Long salaryAmountMinor, Set<DayOfWeek> salaryScheduleDays,
                                            MultipartFile photo) {
@@ -118,7 +117,6 @@ public class EmployeeService {
         employee.setPhoto(photoUrl);
         employee.setGithubUsername(githubUsername);
         employee.setTrelloUsername(trelloUsername);
-        employee.setTelegramUsername(telegramUsername);
         employee.setSubOrganization(resolveSubOrganization(subOrganizationId));
         employee.setSalaryEffectiveDate(salaryDate);
         employee.setSalaryAmountMinor(salaryAmountMinor);
@@ -232,16 +230,6 @@ public class EmployeeService {
     }
 
     @Transactional(readOnly = true)
-    public Page<EmployeeResponse> listWithTelegramUsername(Pageable pageable) {
-        return listWithTelegramUsername(pageable, null);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<EmployeeResponse> listWithTelegramUsername(Pageable pageable, Long subOrganizationId) {
-        return employeeRepo.findAllWithTelegramUsername(subOrganizationId, pageable).map(this::toResponse);
-    }
-
-    @Transactional(readOnly = true)
     public Page<EmployeeConnectedAccountsAdminResponse> listConnectedAccounts(Pageable pageable) {
         return listConnectedAccounts(pageable, null);
     }
@@ -303,7 +291,6 @@ public class EmployeeService {
         if (req.photo() != null) employee.setPhoto(req.photo());
         if (req.githubUsername() != null) employee.setGithubUsername(req.githubUsername());
         if (req.trelloUsername() != null) employee.setTrelloUsername(req.trelloUsername());
-        if (req.telegramUsername() != null) employee.setTelegramUsername(req.telegramUsername());
         if (req.active() != null) employee.setActive(req.active());
         if (req.subOrganizationId() != null) {
             SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
@@ -389,8 +376,7 @@ public class EmployeeService {
     public EmployeeConnectedAccountsResponse updateOwnConnectedAccounts(String employeeEmail,
                                                                         EmployeeConnectedAccountsUpdateRequest request) {
         if (request == null || (request.githubUsername() == null
-                && request.trelloUsername() == null
-                && request.telegramUsername() == null)) {
+                && request.trelloUsername() == null)) {
             throw new BadRequestException("At least one username must be provided");
         }
 
@@ -402,9 +388,6 @@ public class EmployeeService {
         }
         if (request.trelloUsername() != null) {
             employee.setTrelloUsername(normalizeUsername(request.trelloUsername(), "trelloUsername"));
-        }
-        if (request.telegramUsername() != null) {
-            employee.setTelegramUsername(normalizeUsername(request.telegramUsername(), "telegramUsername"));
         }
 
         employeeRepo.save(employee);
@@ -477,7 +460,6 @@ public class EmployeeService {
                 employee.getPhoto(),
                 employee.getGithubUsername(),
                 employee.getTrelloUsername(),
-                employee.getTelegramUsername(),
                 employee.isActive(),
                 subOrgId,
                 subOrgName,
@@ -494,8 +476,7 @@ public class EmployeeService {
                 employee.getId(),
                 employee.getName(),
                 employee.getGithubUsername(),
-                employee.getTrelloUsername(),
-                employee.getTelegramUsername()
+                employee.getTrelloUsername()
         );
     }
 
@@ -505,8 +486,7 @@ public class EmployeeService {
                 employee.getName(),
                 employee.getEmail(),
                 employee.getGithubUsername(),
-                employee.getTrelloUsername(),
-                employee.getTelegramUsername()
+                employee.getTrelloUsername()
         );
     }
 

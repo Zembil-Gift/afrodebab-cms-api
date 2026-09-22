@@ -17,7 +17,6 @@ public record EmployeeMetricSummaryResponse(
         BigDecimal leadershipScore,
         BigDecimal attendanceScore,
         BigDecimal taskScore,
-        BigDecimal supportScore,
         BigDecimal overallScore,
         String strengthSummary,
         String improvementSummary

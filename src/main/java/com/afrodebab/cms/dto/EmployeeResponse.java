@@ -19,7 +19,6 @@ public record EmployeeResponse(
         String photo,
         String githubUsername,
         String trelloUsername,
-        String telegramUsername,
         boolean active,
         Long subOrganizationId,
         String subOrganizationName,

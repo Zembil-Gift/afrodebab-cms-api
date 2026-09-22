@@ -70,16 +70,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     @Query("""
             SELECT e FROM Employee e
-            WHERE (e.telegramUsername IS NOT NULL AND trim(e.telegramUsername) <> '')
-              AND (:subOrganizationId IS NULL OR e.subOrganization.id = :subOrganizationId)
-            """)
-    Page<Employee> findAllWithTelegramUsername(@Param("subOrganizationId") Long subOrganizationId, Pageable pageable);
-
-    @Query("""
-            SELECT e FROM Employee e
             WHERE ((e.githubUsername IS NOT NULL AND trim(e.githubUsername) <> '')
-               OR (e.trelloUsername IS NOT NULL AND trim(e.trelloUsername) <> '')
-               OR (e.telegramUsername IS NOT NULL AND trim(e.telegramUsername) <> ''))
+               OR (e.trelloUsername IS NOT NULL AND trim(e.trelloUsername) <> ''))
               AND (:subOrganizationId IS NULL OR e.subOrganization.id = :subOrganizationId)
             """)
     Page<Employee> findAllWithConnectedAccounts(@Param("subOrganizationId") Long subOrganizationId, Pageable pageable);

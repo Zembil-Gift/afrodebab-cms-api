@@ -4,6 +4,5 @@ public record EmployeeConnectedAccountsResponse(
         Long employeeId,
         String employeeName,
         String githubUsername,
-        String trelloUsername,
-        String telegramUsername
+        String trelloUsername
 ) {}

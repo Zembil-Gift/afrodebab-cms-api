@@ -60,13 +60,6 @@ public class ViceManagerEmployeeController {
         return employeeService.list(pageable, subOrgId);
     }
 
-    @GetMapping("/with-telegram")
-    public Page<EmployeeResponse> withTelegram(Authentication auth,
-                                               @RequestParam(defaultValue = "0") int page,
-                                               @RequestParam(defaultValue = "100") int size) {
-        return employeeService.listWithTelegramUsername(PageRequest.of(page, size, Sort.by("name")), resolveSubOrgId(auth));
-    }
-
     @GetMapping("/connected-accounts")
     public Page<EmployeeConnectedAccountsAdminResponse> connectedAccounts(Authentication auth,
                                                                           @RequestParam(defaultValue = "0") int page,

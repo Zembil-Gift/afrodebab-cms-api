@@ -21,7 +21,6 @@ public record EmployeeUpdateRequest(
         String photo,
         String githubUsername,
         String trelloUsername,
-        String telegramUsername,
         Boolean active,
         Long subOrganizationId,
         LocalDate salaryDate,

@@ -41,9 +41,6 @@ public class Employee extends com.afrodebab.cms.tenant.TenantEntity {
     @Column(name = "trello_username")
     private String trelloUsername;
 
-    @Column(name = "telegram_username")
-    private String telegramUsername;
-
     private String photo;
 
     private String role;
