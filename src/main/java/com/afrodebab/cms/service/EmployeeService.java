@@ -41,6 +41,7 @@ public class EmployeeService {
     private final JwtService jwtService;
     private final EmailNotificationService emailNotificationService;
     private final CloudflareR2Service cloudflareR2Service;
+    private final EmailUniquenessService emailUniquenessService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public EmployeeService(EmployeeRepository employeeRepo,
@@ -49,7 +50,8 @@ public class EmployeeService {
                            PasswordEncoder passwordEncoder,
                            JwtService jwtService,
                            EmailNotificationService emailNotificationService,
-                           CloudflareR2Service cloudflareR2Service) {
+                           CloudflareR2Service cloudflareR2Service,
+                           EmailUniquenessService emailUniquenessService) {
         this.employeeRepo = employeeRepo;
         this.adminRepo = adminRepo;
         this.subOrganizationRepo = subOrganizationRepo;
@@ -57,6 +59,7 @@ public class EmployeeService {
         this.jwtService = jwtService;
         this.emailNotificationService = emailNotificationService;
         this.cloudflareR2Service = cloudflareR2Service;
+        this.emailUniquenessService = emailUniquenessService;
     }
 
     @Transactional
@@ -279,10 +282,14 @@ public class EmployeeService {
     public EmployeeResponse update(Long id, EmployeeUpdateRequest req) {
         Employee employee = getEntityOrThrow(id);
 
-        if (req.email() != null && !req.email().equalsIgnoreCase(employee.getEmail())) {
+        // A new sign-in email gets a fresh password sent there: the old inbox may no longer be the employee's.
+        String newPassword = null;
+        if (req.email() != null && !normalizeEmail(req.email()).equals(employee.getEmail())) {
             String normalizedEmail = normalizeEmail(req.email());
             validateGlobalEmailUniqueness(normalizedEmail, id);
             employee.setEmail(normalizedEmail);
+            newPassword = generatePassword();
+            employee.setPasswordHash(passwordEncoder.encode(newPassword));
         }
 
         if (req.name() != null) employee.setName(req.name());
@@ -308,6 +315,9 @@ public class EmployeeService {
         if (req.salaryScheduleDays() != null) employee.setOfficeDays(normalizeScheduleDays(req.salaryScheduleDays()));
 
         employeeRepo.save(employee);
+        if (newPassword != null) {
+            emailNotificationService.queueEmployeeEmailChangedEmail(employee.getEmail(), employee.getName(), newPassword);
+        }
         return toResponse(employee);
     }
 
@@ -444,14 +454,7 @@ public class EmployeeService {
     }
 
     private void validateGlobalEmailUniqueness(String email, Long currentEmployeeId) {
-        if (adminRepo.findByEmailIgnoreCase(email).isPresent()) {
-            throw new BadRequestException("Email is already used by an admin");
-        }
-
-        Optional<Employee> existingEmployee = employeeRepo.findByEmailIgnoreCase(email);
-        if (existingEmployee.isPresent() && (currentEmployeeId == null || !existingEmployee.get().getId().equals(currentEmployeeId))) {
-            throw new BadRequestException("Employee email already exists");
-        }
+        emailUniquenessService.assertAccountEmailAvailable(email, EmailUniquenessService.AccountType.EMPLOYEE, currentEmployeeId);
     }
 
     private EmployeeResponse toResponse(Employee employee) {

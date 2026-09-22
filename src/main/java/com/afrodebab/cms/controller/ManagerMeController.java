@@ -1,15 +1,17 @@
 package com.afrodebab.cms.controller;
 
+import com.afrodebab.cms.dto.ManagerChangePasswordRequest;
 import com.afrodebab.cms.dto.ManagerMeResponse;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Organization;
 import com.afrodebab.cms.jpa.repository.OrganizationRepository;
+import com.afrodebab.cms.service.ManagerAccountService;
 import com.afrodebab.cms.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * "Who am I" for a logged-in manager. Resolves the manager's organization (name + slug)
@@ -22,8 +24,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class ManagerMeController {
 
     private final OrganizationRepository orgs;
+    private final ManagerAccountService accountService;
 
-    public ManagerMeController(OrganizationRepository orgs) { this.orgs = orgs; }
+    public ManagerMeController(OrganizationRepository orgs, ManagerAccountService accountService) {
+        this.orgs = orgs;
+        this.accountService = accountService;
+    }
+
+    @PostMapping("/password/otp")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void sendPasswordChangeOtp(Authentication auth) {
+        accountService.sendPasswordChangeOtp(auth.getName());
+    }
+
+    @PutMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(Authentication auth, @Valid @RequestBody ManagerChangePasswordRequest req) {
+        accountService.changePassword(auth.getName(), req);
+    }
 
     @GetMapping
     public ManagerMeResponse me(Authentication auth) {

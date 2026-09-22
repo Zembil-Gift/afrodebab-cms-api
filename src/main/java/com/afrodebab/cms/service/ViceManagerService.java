@@ -8,9 +8,7 @@ import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.EmailNotification.NotificationType;
 import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.SubOrganization;
-import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
-import com.afrodebab.cms.jpa.repository.PlatformAdminRepository;
 import com.afrodebab.cms.jpa.repository.SubOrganizationRepository;
 import com.afrodebab.cms.tenant.TenantContext;
 import org.slf4j.Logger;
@@ -33,22 +31,19 @@ public class ViceManagerService {
 
     private final ManagerRepository managerRepository;
     private final SubOrganizationRepository subOrganizationRepository;
-    private final EmployeeRepository employeeRepository;
-    private final PlatformAdminRepository platformAdminRepository;
+    private final EmailUniquenessService emailUniquenessService;
     private final PasswordEncoder passwordEncoder;
     private final EmailTemplateService emailService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public ViceManagerService(ManagerRepository managerRepository,
                               SubOrganizationRepository subOrganizationRepository,
-                              EmployeeRepository employeeRepository,
-                              PlatformAdminRepository platformAdminRepository,
+                              EmailUniquenessService emailUniquenessService,
                               PasswordEncoder passwordEncoder,
                               EmailTemplateService emailService) {
         this.managerRepository = managerRepository;
         this.subOrganizationRepository = subOrganizationRepository;
-        this.employeeRepository = employeeRepository;
-        this.platformAdminRepository = platformAdminRepository;
+        this.emailUniquenessService = emailUniquenessService;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
     }
@@ -76,16 +71,7 @@ public class ViceManagerService {
     public ViceManagerResponse create(ViceManagerCreateRequest req) {
         String normalizedEmail = normalizeEmail(req.email());
 
-        // Validate global email uniqueness across managers, platform admins, and employees
-        boolean emailExists = TenantContext.callAsRoot(() ->
-                managerRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()
-                        || platformAdminRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()
-                        || employeeRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()
-        );
-
-        if (emailExists) {
-            throw new BadRequestException("An account with this email already exists");
-        }
+        emailUniquenessService.assertAccountEmailAvailable(normalizedEmail);
 
         SubOrganization subOrg = subOrganizationRepository.findById(req.subOrganizationId())
                 .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));

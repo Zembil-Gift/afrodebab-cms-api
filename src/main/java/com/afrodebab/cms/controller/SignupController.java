@@ -1,5 +1,6 @@
 package com.afrodebab.cms.controller;
 
+import com.afrodebab.cms.dto.SignupOtpRequest;
 import com.afrodebab.cms.dto.SignupRequestResponse;
 import com.afrodebab.cms.dto.SignupSubmitRequest;
 import com.afrodebab.cms.service.SignupService;
@@ -21,6 +22,12 @@ public class SignupController {
 
     public SignupController(SignupService service) {
         this.service = service;
+    }
+
+    @PostMapping("/otp")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void sendOtp(@Valid @RequestBody SignupOtpRequest req) {
+        service.sendOtp(req);
     }
 
     @PostMapping

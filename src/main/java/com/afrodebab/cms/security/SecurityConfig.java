@@ -55,7 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/public/**").permitAll()
 
                         // public self-serve "Start free" signup submission
-                        .requestMatchers(HttpMethod.POST, "/signup").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/signup", "/signup/otp").permitAll()
 
                         // attendance endpoints resolve the employee (and org) from the request body
                         .requestMatchers(

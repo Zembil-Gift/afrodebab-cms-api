@@ -8,4 +8,5 @@ import java.util.List;
 public interface SignupRequestRepository extends JpaRepository<SignupRequest, Long> {
     List<SignupRequest> findAllByOrderByCreatedAtDesc();
     List<SignupRequest> findAllByStatusOrderByCreatedAtDesc(SignupRequest.Status status);
+    boolean existsByEmailIgnoreCaseAndStatus(String email, SignupRequest.Status status);
 }

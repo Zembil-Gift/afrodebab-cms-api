@@ -455,6 +455,14 @@ public class EmailTemplateService {
                 sample("name", "Selam Bekele", "email", "vice@example.com", "employeeName", "Rekik Haile",
                         "employeeEmail", "rekik@example.com", "position", "Frontend Developer", "branch", "Addis Ababa Branch")));
 
+        DEFINITIONS.put(NotificationType.EMPLOYEE_EMAIL_CHANGED, new Definition("Employee", true,
+                "Your {{organization}} sign-in email was updated",
+                "Your sign-in email was updated",
+                "Your employee account at {{organization}} now signs in with this email address. A new temporary password has been issued below.\n\n"
+                        + "Please log in and change your password immediately to keep your account secure.",
+                true, List.of(),
+                sample("name", "Rekik Haile", "email", "rekik@example.com", PASSWORD, "Temp#1234")));
+
         // Sent before/outside any organization's customization, so these stay on the defaults.
         DEFINITIONS.put(NotificationType.MANAGER_WELCOME, new Definition("Manager", false,
                 "Your {{organization}} workspace is ready",
@@ -475,5 +483,14 @@ public class EmailTemplateService {
                 sample("name", "Platform Admin", "email", "admin@example.com", "companyName", "Acme Corp",
                         "contactName", "Rekik Haile", "contactEmail", "rekik@acme.example",
                         "message", "We'd like to try the platform for our 40-person team.")));
+
+        DEFINITIONS.put(NotificationType.VERIFICATION_CODE, new Definition("Account", false,
+                "Your {{organization}} verification code: {{code}}",
+                "Your verification code",
+                "Use the code below to {{action}}. It expires in {{minutes}} minutes.\n\n"
+                        + "If you did not request this, you can ignore this email.",
+                false, List.of(new Row("Verification code", "code")),
+                sample("email", "rekik@acme.example", "code", "482913", "minutes", "10",
+                        "action", "confirm your email and finish your workspace request")));
     }
 }

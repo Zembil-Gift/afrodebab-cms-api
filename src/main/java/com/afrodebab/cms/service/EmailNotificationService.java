@@ -59,6 +59,12 @@ public class EmailNotificationService {
     }
 
     @Transactional
+    public void queueEmployeeEmailChangedEmail(String recipientEmail, String recipientName, String generatedPassword) {
+        queue(NotificationType.EMPLOYEE_EMAIL_CHANGED, recipientEmail,
+                vars("name", recipientName, PASSWORD, protectPassword(generatedPassword)));
+    }
+
+    @Transactional
     public void queueAdminPayrollReminderEmail(String recipientEmail, String recipientName, int dueCount) {
         queue(NotificationType.ADMIN_PAYROLL_REMINDER, recipientEmail,
                 vars("name", recipientName, "count", String.valueOf(dueCount)));

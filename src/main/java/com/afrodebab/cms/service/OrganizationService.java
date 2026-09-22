@@ -37,17 +37,20 @@ public class OrganizationService {
     private final EmailTemplateService emailService;
     private final SignupService signupService;
     private final SubOrganizationService subOrganizationService;
+    private final EmailUniquenessService emailUniquenessService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public OrganizationService(OrganizationRepository orgRepo, ManagerRepository managerRepo,
                                PasswordEncoder passwordEncoder, EmailTemplateService emailService,
-                               SignupService signupService, SubOrganizationService subOrganizationService) {
+                               SignupService signupService, SubOrganizationService subOrganizationService,
+                               EmailUniquenessService emailUniquenessService) {
         this.orgRepo = orgRepo;
         this.managerRepo = managerRepo;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.signupService = signupService;
         this.subOrganizationService = subOrganizationService;
+        this.emailUniquenessService = emailUniquenessService;
     }
 
     /**
@@ -62,15 +65,12 @@ public class OrganizationService {
             throw new BadRequestException("An organization with this slug already exists");
         }
         String managerEmail = req.managerEmail().trim().toLowerCase(Locale.ROOT);
-        // Manager email is globally unique; check across all orgs.
-        boolean emailTaken = TenantContext.callAsRoot(
-                () -> managerRepo.findByEmailIgnoreCase(managerEmail).isPresent());
-        if (emailTaken) {
-            throw new BadRequestException("A manager with this email already exists");
-        }
+        emailUniquenessService.assertAccountEmailAvailable(managerEmail);
 
         // Seed the profile from the create request, backfilling from the linked signup request.
         SignupRequest lead = signupService.find(req.requestId()).orElse(null);
+        String companyEmail = firstNonBlank(req.companyEmail(), lead != null ? lead.getEmail() : null);
+        emailUniquenessService.assertCompanyEmailAvailable(companyEmail, null);
         Organization org = orgRepo.save(Organization.builder()
                 .name(req.name().trim())
                 .slug(slug)
@@ -81,7 +81,7 @@ public class OrganizationService {
                 .businessType(trimToNull(req.businessType()))
                 .industry(lead != null ? lead.getIndustry() : null)
                 .websiteUrl(firstNonBlank(req.websiteUrl(), lead != null ? lead.getWebsiteUrl() : null))
-                .companyEmail(firstNonBlank(req.companyEmail(), lead != null ? lead.getEmail() : null))
+                .companyEmail(companyEmail)
                 .build());
 
         // Password is generated server-side and emailed to the manager (never chosen by the admin).
@@ -143,6 +143,7 @@ public class OrganizationService {
         org.setCompanySize(trimToNull(req.companySize()));
         org.setFoundedYear(req.foundedYear());
         org.setPhone(trimToNull(req.phone()));
+        emailUniquenessService.assertCompanyEmailAvailable(req.companyEmail(), org.getId());
         org.setCompanyEmail(trimToNull(req.companyEmail()));
         org.setWebsiteUrl(trimToNull(req.websiteUrl()));
         org.setAddressLine(trimToNull(req.addressLine()));

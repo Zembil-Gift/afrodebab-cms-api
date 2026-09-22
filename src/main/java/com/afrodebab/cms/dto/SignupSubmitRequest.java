@@ -2,6 +2,7 @@ package com.afrodebab.cms.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /** Public "Start free" submission from the marketing site. No slug or password: a platform
@@ -13,5 +14,6 @@ public record SignupSubmitRequest(
         @Size(max = 60) String phone,
         @Size(max = 120) String industry,
         @Size(max = 512) String websiteUrl,
-        @Size(max = 2000) String message
+        @Size(max = 2000) String message,
+        @NotBlank(message = "verification code is required") @Pattern(regexp = "\\d{6}", message = "verification code must be 6 digits") String otp
 ) {}

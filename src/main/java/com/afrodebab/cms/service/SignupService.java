@@ -1,11 +1,13 @@
 package com.afrodebab.cms.service;
 
+import com.afrodebab.cms.dto.SignupOtpRequest;
 import com.afrodebab.cms.dto.SignupRequestResponse;
 import com.afrodebab.cms.dto.SignupSubmitRequest;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.EmailNotification.NotificationType;
 import com.afrodebab.cms.jpa.entity.PlatformAdmin;
+import com.afrodebab.cms.jpa.entity.EmailOtp;
 import com.afrodebab.cms.jpa.entity.SignupRequest;
 import com.afrodebab.cms.jpa.repository.PlatformAdminRepository;
 import com.afrodebab.cms.jpa.repository.SignupRequestRepository;
@@ -26,23 +28,41 @@ public class SignupService {
     private static final Logger log = LoggerFactory.getLogger(SignupService.class);
 
     private final SignupRequestRepository signupRepo;
+    private final EmailOtpService otpService;
     private final PlatformAdminRepository platformAdminRepo;
     private final EmailTemplateService emailService;
+    private final EmailUniquenessService emailUniquenessService;
 
     public SignupService(SignupRequestRepository signupRepo,
+                         EmailOtpService otpService,
                          PlatformAdminRepository platformAdminRepo,
-                         EmailTemplateService emailService) {
+                         EmailTemplateService emailService,
+                         EmailUniquenessService emailUniquenessService) {
         this.signupRepo = signupRepo;
+        this.otpService = otpService;
         this.platformAdminRepo = platformAdminRepo;
         this.emailService = emailService;
+        this.emailUniquenessService = emailUniquenessService;
+    }
+
+    /** Emails a fresh 6-digit code, replacing any earlier one for this address. */
+    @Transactional
+    public void sendOtp(SignupOtpRequest req) {
+        String email = normalizeEmail(req.email());
+        assertEmailAvailable(email);
+        otpService.issue(EmailOtp.Purpose.SIGNUP, email, "confirm your email and finish your workspace request", null);
     }
 
     @Transactional
     public SignupRequestResponse submit(SignupSubmitRequest req) {
+        String email = normalizeEmail(req.email());
+        assertEmailAvailable(email);
+        otpService.verify(EmailOtp.Purpose.SIGNUP, email, req.otp());
+
         SignupRequest saved = signupRepo.save(SignupRequest.builder()
                 .companyName(req.companyName().trim())
                 .contactName(req.contactName().trim())
-                .email(req.email().trim().toLowerCase(Locale.ROOT))
+                .email(email)
                 .phone(trimToNull(req.phone()))
                 .industry(trimToNull(req.industry()))
                 .websiteUrl(trimToNull(req.websiteUrl()))
@@ -52,6 +72,17 @@ public class SignupService {
 
         notifyPlatformAdmins(saved);
         return SignupRequestResponse.from(saved);
+    }
+
+    private void assertEmailAvailable(String email) {
+        emailUniquenessService.assertAccountEmailAvailable(email);
+        if (signupRepo.existsByEmailIgnoreCaseAndStatus(email, SignupRequest.Status.PENDING)) {
+            throw new BadRequestException("A signup request with this email is already awaiting review");
+        }
+    }
+
+    private static String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     private static String trimToNull(String s) {

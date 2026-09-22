@@ -34,7 +34,9 @@ public class EmailNotification extends com.afrodebab.cms.tenant.TenantEntity {
         VICE_MANAGER_PAYROLL_REMINDER,
         VICE_MANAGER_NEW_EMPLOYEE,
         MANAGER_WELCOME,
-        PLATFORM_SIGNUP_REQUEST
+        PLATFORM_SIGNUP_REQUEST,
+        VERIFICATION_CODE,
+        EMPLOYEE_EMAIL_CHANGED
     }
 
     @Id
