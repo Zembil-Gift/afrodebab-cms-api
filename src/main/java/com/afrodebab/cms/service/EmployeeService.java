@@ -84,7 +84,7 @@ public class EmployeeService {
         employee.setSubOrganization(resolveSubOrganization(req.subOrganizationId()));
         employee.setSalaryEffectiveDate(req.salaryDate());
         employee.setSalaryAmountMinor(req.salaryAmountMinor());
-        employee.setOfficeDays(normalizeScheduleDays(req.salaryScheduleDays()));
+        employee.setOfficeDays(requireOfficeDays(req.salaryScheduleDays()));
         employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
         employee.setActive(true);
 
@@ -120,7 +120,7 @@ public class EmployeeService {
         employee.setSubOrganization(resolveSubOrganization(subOrganizationId));
         employee.setSalaryEffectiveDate(salaryDate);
         employee.setSalaryAmountMinor(salaryAmountMinor);
-        employee.setOfficeDays(normalizeScheduleDays(salaryScheduleDays));
+        employee.setOfficeDays(requireOfficeDays(salaryScheduleDays));
         employee.setPasswordHash(passwordEncoder.encode(generatedPassword));
         employee.setActive(true);
 
@@ -299,7 +299,7 @@ public class EmployeeService {
         }
         if (req.salaryDate() != null) employee.setSalaryEffectiveDate(req.salaryDate());
         if (req.salaryAmountMinor() != null) employee.setSalaryAmountMinor(req.salaryAmountMinor());
-        if (req.salaryScheduleDays() != null) employee.setOfficeDays(normalizeScheduleDays(req.salaryScheduleDays()));
+        if (req.salaryScheduleDays() != null) employee.setOfficeDays(requireOfficeDays(req.salaryScheduleDays()));
 
         employeeRepo.save(employee);
         if (newPassword != null) {
@@ -488,6 +488,14 @@ public class EmployeeService {
                 employee.getGithubUsername(),
                 employee.getTrelloUsername()
         );
+    }
+
+    /** Employees created or edited by a manager must have at least one office day. */
+    private Set<DayOfWeek> requireOfficeDays(Set<DayOfWeek> salaryScheduleDays) {
+        if (salaryScheduleDays == null || salaryScheduleDays.isEmpty()) {
+            throw new BadRequestException("Select at least one office day");
+        }
+        return normalizeScheduleDays(salaryScheduleDays);
     }
 
     private Set<DayOfWeek> normalizeScheduleDays(Set<DayOfWeek> salaryScheduleDays) {

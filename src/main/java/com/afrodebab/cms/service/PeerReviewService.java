@@ -386,16 +386,7 @@ public class PeerReviewService {
     public List<PeerReviewResponse> listByPeriod(LocalDate periodStart, LocalDate periodEnd, Long revieweeId) {
         validatePeriod(periodStart, periodEnd);
 
-        List<PeerReview> rows;
-        if (revieweeId != null) {
-            rows = peerReviewRepository.findAllByRevieweeIdAndPeriodStartAndPeriodEndOrderByCreatedAtDesc(
-                    revieweeId,
-                    periodStart,
-                    periodEnd
-            );
-        } else {
-            rows = peerReviewRepository.findAllByPeriodStartAndPeriodEndOrderByCreatedAtDesc(periodStart, periodEnd);
-        }
+        List<PeerReview> rows = peerReviewRepository.findSubmittedBetween(revieweeId, periodStart, periodEnd);
 
         return rows.stream()
                 .map(this::toResponse)
@@ -412,17 +403,13 @@ public class PeerReviewService {
             Employee employee = employeeRepository.findById(revieweeId)
                     .orElseThrow(() -> new NotFoundException("Employee not found"));
 
-            List<PeerReview> reviews = peerReviewRepository.findAllByRevieweeIdAndPeriodStartAndPeriodEndOrderByCreatedAtDesc(
-                    revieweeId,
-                    periodStart,
-                    periodEnd
-            );
+            List<PeerReview> reviews = peerReviewRepository.findSubmittedBetween(revieweeId, periodStart, periodEnd);
             Map<Long, EmployeeAggregate> aggregates = buildAggregates(reviews);
 
             return List.of(toEmployeeSummary(employee, periodStart, periodEnd, aggregates.get(employee.getId())));
         }
 
-        List<PeerReview> reviews = peerReviewRepository.findAllByPeriodStartAndPeriodEndOrderByCreatedAtDesc(periodStart, periodEnd);
+        List<PeerReview> reviews = peerReviewRepository.findSubmittedBetween(null, periodStart, periodEnd);
         Map<Long, EmployeeAggregate> aggregates = buildAggregates(reviews);
 
         return resolveEmployeesForAdmin(reviews)

@@ -56,7 +56,7 @@ public class EmployeeAdminController {
             @RequestParam(required = false) Long subOrganizationId,
             @RequestParam(required = false) LocalDate salaryDate,
             @RequestParam(required = false) Long salaryAmountMinor,
-            @RequestParam Set<DayOfWeek> salaryScheduleDays,
+            @RequestParam(required = false) Set<DayOfWeek> salaryScheduleDays,
             @RequestParam(name = "photo", required = false) MultipartFile photo,
             @RequestParam(name = "file", required = false) MultipartFile file
     ) {

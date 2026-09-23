@@ -149,11 +149,7 @@ public class MetricsService {
     }
 
     private BigDecimal computeLeadershipScore(Long employeeId, LocalDate periodStart, LocalDate periodEnd) {
-        List<PeerReview> rows = peerReviewRepository.findAllByRevieweeIdAndPeriodStartAndPeriodEndOrderByCreatedAtDesc(
-                employeeId,
-                periodStart,
-                periodEnd
-        );
+        List<PeerReview> rows = peerReviewRepository.findSubmittedBetween(employeeId, periodStart, periodEnd);
         if (rows.isEmpty()) {
             return null;
         }
