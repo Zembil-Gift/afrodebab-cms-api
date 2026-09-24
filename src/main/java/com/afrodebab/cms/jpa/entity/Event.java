@@ -21,10 +21,6 @@ public class Event extends com.afrodebab.cms.tenant.TenantEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sub_organization_id")
-    private SubOrganization subOrganization;
-
     @Column(nullable = false) private String title;
     @Column(nullable = false, unique = true) private String slug;
 

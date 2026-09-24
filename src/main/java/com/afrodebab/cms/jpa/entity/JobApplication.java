@@ -6,8 +6,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Entity
@@ -52,6 +56,10 @@ public class JobApplication extends com.afrodebab.cms.tenant.TenantEntity {
 
     @Column(name = "resume_url")
     private String resumeUrl;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "answers", nullable = false)
+    private List<JobApplicationAnswer> answers = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = true)

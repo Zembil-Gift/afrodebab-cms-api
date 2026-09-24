@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Public - JobApply")
@@ -33,8 +34,10 @@ public class JobApplyController {
                                          @RequestParam @NotBlank(message = "email is required") @Email(message = "email must be valid") String email,
                                          @RequestParam(required = false) String phoneNumber,
                                          @RequestParam(required = false) String githubUrl,
-                                         @RequestParam(name = "resume") MultipartFile resume) {
+                                         @RequestParam(name = "resume") MultipartFile resume,
+                                         MultipartHttpServletRequest request) {
         ApplyRequest req = new ApplyRequest(fullName, email, phoneNumber, githubUrl);
-        return service.applyWithResume(id, req, resume);
+        // Custom form answers arrive as answer.<fieldId> params and file.<fieldId> parts.
+        return service.applyWithResume(id, req, resume, request.getParameterMap(), request.getFileMap());
     }
 }

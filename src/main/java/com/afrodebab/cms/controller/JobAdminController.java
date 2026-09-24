@@ -22,17 +22,16 @@ public class JobAdminController {
 
     // Tenant-scoped: returns only the logged-in manager's org jobs (all statuses).
     @GetMapping
-    public Page<JobResponse> list(@RequestParam(required = false) Long subOrganizationId,
-                                  @RequestParam(defaultValue = "0") int page,
+    public Page<JobResponse> list(@RequestParam(defaultValue = "0") int page,
                                   @RequestParam(defaultValue = "10") int size,
                                   @RequestParam(defaultValue = "createdAt") String sortBy,
                                   @RequestParam(defaultValue = "desc") String direction) {
         var dir = "asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        return service.listAll(PageRequest.of(page, size, Sort.by(dir, sortBy)), subOrganizationId);
+        return service.listAll(PageRequest.of(page, size, Sort.by(dir, sortBy)));
     }
 
     @GetMapping("/{id}") public JobResponse get(@PathVariable Long id) { return service.getOne(id); }
     @PostMapping public JobResponse create(@Valid @RequestBody JobCreateRequest req) { return service.create(req); }
-    @PutMapping("/{id}") public JobResponse update(@PathVariable Long id, @RequestBody JobUpdateRequest req) { return service.update(id, req); }
+    @PutMapping("/{id}") public JobResponse update(@PathVariable Long id, @Valid @RequestBody JobUpdateRequest req) { return service.update(id, req); }
 }
 

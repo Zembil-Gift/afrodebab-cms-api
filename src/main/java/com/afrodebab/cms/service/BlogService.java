@@ -5,12 +5,9 @@ import com.afrodebab.cms.dto.BlogAdminResponse;
 import com.afrodebab.cms.dto.BlogCreateRequest;
 import com.afrodebab.cms.dto.BlogPublicResponse;
 import com.afrodebab.cms.dto.BlogUpdateRequest;
-import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Blog;
-import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.BlogRepository;
-import com.afrodebab.cms.jpa.repository.SubOrganizationRepository;
 import com.afrodebab.cms.util.SlugUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -24,11 +21,8 @@ import java.time.Instant;
 public class BlogService {
 
     private final BlogRepository repo;
-    private final SubOrganizationRepository subOrganizationRepo;
-
-    public BlogService(BlogRepository repo, SubOrganizationRepository subOrganizationRepo) {
+    public BlogService(BlogRepository repo) {
         this.repo = repo;
-        this.subOrganizationRepo = subOrganizationRepo;
     }
 
     // PUBLIC
@@ -48,14 +42,6 @@ public class BlogService {
     // MANAGER: list ALL of the current tenant's blogs (any status). Tenant-scoped by @TenantId.
     @Transactional(readOnly = true)
     public Page<BlogAdminResponse> listAllAdmin(Pageable pageable) {
-        return listAllAdmin(pageable, null);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<BlogAdminResponse> listAllAdmin(Pageable pageable, Long subOrganizationId) {
-        if (subOrganizationId != null) {
-            return repo.findAllBySubOrganizationId(subOrganizationId, pageable).map(this::toAdmin);
-        }
         return repo.findAll(pageable).map(this::toAdmin);
     }
 
@@ -73,11 +59,6 @@ public class BlogService {
         b.setContent(req.content());
         b.setCoverImageUrl(req.coverImageUrl());
 
-        if (req.subOrganizationId() != null) {
-            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
-                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
-            b.setSubOrganization(subOrg);
-        }
 
         Blog.Status status = (req.status() == null) ? Blog.Status.DRAFT : req.status();
         b.setStatus(status);
@@ -102,15 +83,10 @@ public class BlogService {
         if (req.content() != null) b.setContent(req.content());
         if (req.coverImageUrl() != null) b.setCoverImageUrl(req.coverImageUrl());
 
-        if (req.subOrganizationId() != null) {
-            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
-                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
-            b.setSubOrganization(subOrg);
-        }
 
-        if (req.slug() != null) {
-            String s = uniqueSlug(SlugUtil.toSlug(req.slug()));
-            b.setSlug(s);
+        // Re-slug only on an actual change: uniqueSlug would treat the post's own slug as taken.
+        if (req.slug() != null && !req.slug().isBlank() && !SlugUtil.toSlug(req.slug()).equals(b.getSlug())) {
+            b.setSlug(uniqueSlug(SlugUtil.toSlug(req.slug())));
         }
 
         if (req.status() != null && req.status() != b.getStatus()) {
@@ -150,12 +126,9 @@ public class BlogService {
     }
 
     private BlogAdminResponse toAdmin(Blog b) {
-        Long subOrgId = b.getSubOrganization() != null ? b.getSubOrganization().getId() : null;
-        String subOrgName = b.getSubOrganization() != null ? b.getSubOrganization().getName() : null;
         return new BlogAdminResponse(
                 b.getId(), b.getTitle(), b.getSlug(), b.getExcerpt(),
-                b.getContent(), b.getCoverImageUrl(), b.getStatus(), b.getPublishedAt(),
-                subOrgId, subOrgName
+                b.getContent(), b.getCoverImageUrl(), b.getStatus(), b.getPublishedAt()
         );
     }
 }

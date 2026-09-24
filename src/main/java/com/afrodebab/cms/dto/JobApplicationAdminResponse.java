@@ -1,8 +1,10 @@
 package com.afrodebab.cms.dto;
 
 import com.afrodebab.cms.jpa.entity.JobApplication;
+import com.afrodebab.cms.jpa.entity.JobApplicationAnswer;
 
 import java.time.Instant;
+import java.util.List;
 
 public record JobApplicationAdminResponse(
         Long id,
@@ -15,5 +17,6 @@ public record JobApplicationAdminResponse(
         JobApplication.ApplicationStatus status,
         Long hiredEmployeeId,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        List<JobApplicationAnswer> answers
 ) {}

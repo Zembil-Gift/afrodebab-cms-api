@@ -5,8 +5,13 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Entity
@@ -20,10 +25,6 @@ public class Job extends com.afrodebab.cms.tenant.TenantEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sub_organization_id")
-    private SubOrganization subOrganization;
 
     @Column(nullable = false) private String title;
     @Column(nullable = false, unique = true) private String slug;
@@ -42,6 +43,20 @@ public class Job extends com.afrodebab.cms.tenant.TenantEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status = Status.DRAFT;
+
+    @Column(name = "experience_level", length = 40)
+    private String experienceLevel;
+
+    @Column(name = "salary_range", length = 120)
+    private String salaryRange;
+
+    /** Last day (inclusive) applications are accepted; null = no deadline. */
+    @Column(name = "application_deadline")
+    private LocalDate applicationDeadline;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "application_fields", nullable = false)
+    private List<JobApplicationField> applicationFields = new ArrayList<>();
 
     @Column(name="created_at", nullable=false, updatable=false)
     private Instant createdAt;

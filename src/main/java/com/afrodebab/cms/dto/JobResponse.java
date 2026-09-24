@@ -2,8 +2,11 @@ package com.afrodebab.cms.dto;
 
 
 import com.afrodebab.cms.jpa.entity.Job;
+import com.afrodebab.cms.jpa.entity.JobApplicationField;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 
 public record JobResponse(
         Long id,
@@ -15,6 +18,9 @@ public record JobResponse(
         String description,
         Job.Status status,
         Instant createdAt,
-        Long subOrganizationId,
-        String subOrganizationName
+        String experienceLevel,
+        String salaryRange,
+        LocalDate applicationDeadline,
+        boolean acceptingApplications,
+        List<JobApplicationField> applicationFields
 ) {}

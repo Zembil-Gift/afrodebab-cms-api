@@ -15,6 +15,5 @@ public record EventUpdateRequest(
         Instant endDate,
         String coverImageUrl,
         String registrationUrl,
-        Event.Status status,
-        Long subOrganizationId
+        Event.Status status
 ) {}

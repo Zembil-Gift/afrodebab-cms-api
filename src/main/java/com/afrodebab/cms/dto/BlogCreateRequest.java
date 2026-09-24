@@ -9,7 +9,6 @@ public record BlogCreateRequest(
         String excerpt,
         @NotBlank(message = "content is required") String content,
         String coverImageUrl,
-        Blog.Status status,       // optional: defaults to DRAFT
-        Long subOrganizationId
+        Blog.Status status        // optional: defaults to DRAFT
 ) {}
 

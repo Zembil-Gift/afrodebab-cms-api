@@ -11,7 +11,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     Optional<Event> findBySlug(String slug);
     Optional<Event> findBySlugAndStatus(String slug, Event.Status status);
     Page<Event> findAllByStatus(Event.Status status, Pageable pageable);
-    Page<Event> findAllBySubOrganizationId(Long subOrganizationId, Pageable pageable);
     boolean existsBySlug(String slug);
 }
 

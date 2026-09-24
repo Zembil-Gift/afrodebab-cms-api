@@ -4,47 +4,42 @@ package com.afrodebab.cms.service;
 import com.afrodebab.cms.dto.JobCreateRequest;
 import com.afrodebab.cms.dto.JobResponse;
 import com.afrodebab.cms.dto.JobUpdateRequest;
-import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Job;
-import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.JobRepository;
-import com.afrodebab.cms.jpa.repository.SubOrganizationRepository;
 import com.afrodebab.cms.util.SlugUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+
 @Service
 @Transactional
 public class JobService {
-    private final JobRepository repo;
-    private final SubOrganizationRepository subOrganizationRepo;
+    // ponytail: deadlines are judged in Ethiopian time; use the org's zone if orgs span time zones.
+    private static final ZoneId DEADLINE_ZONE = ZoneId.of("Africa/Addis_Ababa");
 
-    public JobService(JobRepository repo, SubOrganizationRepository subOrganizationRepo) {
+    private final JobRepository repo;
+    private final JobApplicationFormService formService;
+
+    public JobService(JobRepository repo, JobApplicationFormService formService) {
         this.repo = repo;
-        this.subOrganizationRepo = subOrganizationRepo;
+        this.formService = formService;
     }
 
-    // public: list OPEN jobs (simple + safe)
+    // public: OPEN jobs still within their application deadline
     @Transactional(readOnly = true)
     public Page<JobResponse> listOpen(Pageable pageable) {
-        return repo.findAllByStatus(Job.Status.OPEN, pageable).map(this::toResponse);
+        return repo.findAcceptingApplications(LocalDate.now(DEADLINE_ZONE), pageable).map(this::toResponse);
     }
 
     // manager: list ALL of the current tenant's jobs (any status, incl. DRAFT).
     // Tenant-scoped automatically by Hibernate's @TenantId filter.
     @Transactional(readOnly = true)
     public Page<JobResponse> listAll(Pageable pageable) {
-        return listAll(pageable, null);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<JobResponse> listAll(Pageable pageable, Long subOrganizationId) {
-        if (subOrganizationId != null) {
-            return repo.findAllBySubOrganizationId(subOrganizationId, pageable).map(this::toResponse);
-        }
         return repo.findAll(pageable).map(this::toResponse);
     }
 
@@ -70,13 +65,10 @@ public class JobService {
         j.setLocation(req.location());
         j.setDescription(req.description());
         j.setStatus(req.status() == null ? Job.Status.DRAFT : req.status());
-
-        if (req.subOrganizationId() != null) {
-            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
-                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
-            j.setSubOrganization(subOrg);
-        }
-
+        j.setExperienceLevel(trimToNull(req.experienceLevel()));
+        j.setSalaryRange(trimToNull(req.salaryRange()));
+        j.setApplicationDeadline(req.applicationDeadline());
+        j.setApplicationFields(formService.normalizeFields(req.applicationFields()));
         String baseSlug = (req.slug() != null && !req.slug().isBlank())
                 ? SlugUtil.toSlug(req.slug())
                 : SlugUtil.toSlug(req.title());
@@ -95,17 +87,24 @@ public class JobService {
         if (req.location() != null) j.setLocation(req.location());
         if (req.description() != null) j.setDescription(req.description());
         if (req.status() != null) j.setStatus(req.status());
+        j.setExperienceLevel(trimToNull(req.experienceLevel()));
+        j.setSalaryRange(trimToNull(req.salaryRange()));
+        j.setApplicationDeadline(req.applicationDeadline());
+        if (req.applicationFields() != null) j.setApplicationFields(formService.normalizeFields(req.applicationFields()));
 
-        if (req.subOrganizationId() != null) {
-            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
-                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
-            j.setSubOrganization(subOrg);
+        // Re-slug only on an actual change: uniqueSlug would treat the job's own slug as taken.
+        if (req.slug() != null && !req.slug().isBlank() && !SlugUtil.toSlug(req.slug()).equals(j.getSlug())) {
+            j.setSlug(uniqueSlug(SlugUtil.toSlug(req.slug())));
         }
-
-        if (req.slug() != null) j.setSlug(uniqueSlug(SlugUtil.toSlug(req.slug())));
 
         repo.save(j);
         return toResponse(j);
+    }
+
+    /** OPEN and not past its deadline (the deadline day itself still counts). */
+    public boolean isAcceptingApplications(Job j) {
+        return j.getStatus() == Job.Status.OPEN
+                && (j.getApplicationDeadline() == null || !LocalDate.now(DEADLINE_ZONE).isAfter(j.getApplicationDeadline()));
     }
 
     public Job getEntityOrThrow(Long id) {
@@ -120,13 +119,16 @@ public class JobService {
     }
 
     private JobResponse toResponse(Job j) {
-        Long subOrgId = j.getSubOrganization() != null ? j.getSubOrganization().getId() : null;
-        String subOrgName = j.getSubOrganization() != null ? j.getSubOrganization().getName() : null;
         return new JobResponse(
                 j.getId(), j.getTitle(), j.getSlug(), j.getDepartment(),
                 j.getEmploymentType(), j.getLocation(), j.getDescription(), j.getStatus(),
-                j.getCreatedAt(), subOrgId, subOrgName
+                j.getCreatedAt(), j.getExperienceLevel(), j.getSalaryRange(), j.getApplicationDeadline(),
+                isAcceptingApplications(j), j.getApplicationFields()
         );
+    }
+
+    private static String trimToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 }
 

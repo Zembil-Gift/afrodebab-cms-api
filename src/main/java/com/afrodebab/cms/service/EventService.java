@@ -4,12 +4,9 @@ package com.afrodebab.cms.service;
 import com.afrodebab.cms.dto.EventCreateRequest;
 import com.afrodebab.cms.dto.EventResponse;
 import com.afrodebab.cms.dto.EventUpdateRequest;
-import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Event;
-import com.afrodebab.cms.jpa.entity.SubOrganization;
 import com.afrodebab.cms.jpa.repository.EventRepository;
-import com.afrodebab.cms.jpa.repository.SubOrganizationRepository;
 import com.afrodebab.cms.util.SlugUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,11 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class EventService {
 
     private final EventRepository repo;
-    private final SubOrganizationRepository subOrganizationRepo;
-
-    public EventService(EventRepository repo, SubOrganizationRepository subOrganizationRepo) {
+    public EventService(EventRepository repo) {
         this.repo = repo;
-        this.subOrganizationRepo = subOrganizationRepo;
     }
 
     // public
@@ -44,14 +38,6 @@ public class EventService {
     // manager: list ALL of the current tenant's events (any status). Tenant-scoped by @TenantId.
     @Transactional(readOnly = true)
     public Page<EventResponse> listAllAdmin(Pageable pageable) {
-        return listAllAdmin(pageable, null);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<EventResponse> listAllAdmin(Pageable pageable, Long subOrganizationId) {
-        if (subOrganizationId != null) {
-            return repo.findAllBySubOrganizationId(subOrganizationId, pageable).map(this::toResponse);
-        }
         return repo.findAll(pageable).map(this::toResponse);
     }
 
@@ -74,11 +60,6 @@ public class EventService {
         e.setRegistrationUrl(req.registrationUrl());
         e.setStatus(req.status() == null ? Event.Status.DRAFT : req.status());
 
-        if (req.subOrganizationId() != null) {
-            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
-                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
-            e.setSubOrganization(subOrg);
-        }
 
         String baseSlug = (req.slug() != null && !req.slug().isBlank())
                 ? SlugUtil.toSlug(req.slug())
@@ -102,13 +83,11 @@ public class EventService {
         if (req.coverImageUrl() != null) e.setCoverImageUrl(req.coverImageUrl());
         if (req.status() != null) e.setStatus(req.status());
 
-        if (req.subOrganizationId() != null) {
-            SubOrganization subOrg = subOrganizationRepo.findById(req.subOrganizationId())
-                    .orElseThrow(() -> new BadRequestException("Sub-organization not found with id: " + req.subOrganizationId()));
-            e.setSubOrganization(subOrg);
-        }
 
-        if (req.slug() != null) e.setSlug(uniqueSlug(SlugUtil.toSlug(req.slug())));
+        // Re-slug only on an actual change: uniqueSlug would treat the event's own slug as taken.
+        if (req.slug() != null && !req.slug().isBlank() && !SlugUtil.toSlug(req.slug()).equals(e.getSlug())) {
+            e.setSlug(uniqueSlug(SlugUtil.toSlug(req.slug())));
+        }
 
         repo.save(e);
         return toResponse(e);
@@ -122,12 +101,10 @@ public class EventService {
     }
 
     private EventResponse toResponse(Event e) {
-        Long subOrgId = e.getSubOrganization() != null ? e.getSubOrganization().getId() : null;
-        String subOrgName = e.getSubOrganization() != null ? e.getSubOrganization().getName() : null;
         return new EventResponse(
                 e.getId(), e.getTitle(), e.getSlug(), e.getDescription(),
                 e.getEventType(), e.getLocation(), e.getStartDate(), e.getCoverImageUrl(), e.getEndDate(),
-                e.getRegistrationUrl(), e.getStatus(), subOrgId, subOrgName
+                e.getRegistrationUrl(), e.getStatus()
         );
     }
 }

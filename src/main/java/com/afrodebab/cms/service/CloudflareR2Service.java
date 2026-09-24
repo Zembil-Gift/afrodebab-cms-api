@@ -57,9 +57,22 @@ public class CloudflareR2Service {
         return uploadFile("organizations/" + orgId + "/cover", file, "cover", "Failed to upload organization cover");
     }
 
+    /** Cover image for an org's blog post or event; {@code kind} is the folder, e.g. "blogs" or "events". */
+    public String uploadOrgContentImage(Long orgId, String kind, MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new BadRequestException("Image file is required");
+        String type = file.getContentType();
+        if (type == null || !type.startsWith("image/")) throw new BadRequestException("Only image files are allowed");
+        return uploadFile("organizations/" + orgId + "/" + kind, file, "image", "Failed to upload image");
+    }
+
     public String uploadJobApplicationResume(Long applicationId, MultipartFile file) {
         if (file == null || file.isEmpty()) throw new BadRequestException("Resume file is required");
         return uploadFile("job-applications/" + applicationId, file, "resume", "Failed to upload application resume");
+    }
+
+    public String uploadJobApplicationAttachment(Long applicationId, MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new BadRequestException("Attachment file is required");
+        return uploadFile("job-applications/" + applicationId + "/attachments", file, "attachment", "Failed to upload application attachment");
     }
 
     private String uploadFile(String folder, MultipartFile file, String fallbackName, String uploadError) {
@@ -88,6 +101,8 @@ public class CloudflareR2Service {
                     .bucket(bucket)
                     .key(key)
                     .contentType(file.getContentType() == null ? "application/octet-stream" : file.getContentType())
+                    // Keys embed a random UUID, so an object never changes: let browsers/CDN cache it for a year.
+                    .cacheControl("public, max-age=31536000, immutable")
                     .build();
 
             s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));

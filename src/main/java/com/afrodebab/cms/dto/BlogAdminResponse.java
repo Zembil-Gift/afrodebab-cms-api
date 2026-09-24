@@ -11,8 +11,6 @@ public record BlogAdminResponse(
         String content,
         String coverImageUrl,
         Blog.Status status,
-        Instant publishedAt,
-        Long subOrganizationId,
-        String subOrganizationName
+        Instant publishedAt
 ) {}
 
