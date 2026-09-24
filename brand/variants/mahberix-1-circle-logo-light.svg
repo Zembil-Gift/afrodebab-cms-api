@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" width="600" height="128" role="img" aria-label="Mahberix — People. Work. Connected.">
+  <rect width="64" height="64" rx="14" fill="#1e1b4b"/><path d="M24.29 23.81A12 12 0 0 1 39.71 23.81" fill="none" stroke="#a5b4fc" stroke-width="6" stroke-linecap="round"/><circle cx="32.00" cy="14.50" r="5.5" fill="#a5b4fc"/><path d="M43.82 30.92A12 12 0 0 1 36.10 44.28" fill="none" stroke="#a5b4fc" stroke-width="6" stroke-linecap="round"/><circle cx="48.02" cy="42.25" r="5.5" fill="#a5b4fc"/><path d="M27.90 44.28A12 12 0 0 1 20.18 30.92" fill="none" stroke="#a5b4fc" stroke-width="6" stroke-linecap="round"/><circle cx="15.98" cy="42.25" r="5.5" fill="#a5b4fc"/>
+  <text x="78" y="36" font-family="Montserrat, 'Inter', 'Segoe UI', Arial, sans-serif" font-weight="700" font-size="30" letter-spacing="-0.5" fill="#111827">Mahberi<tspan fill="#6366f1">x</tspan></text>
+  <text x="79" y="54" font-family="Montserrat, 'Inter', 'Segoe UI', Arial, sans-serif" font-weight="500" font-size="10.5" letter-spacing="1.6" fill="#6b7280">PEOPLE. WORK. CONNECTED.</text>
+</svg>
