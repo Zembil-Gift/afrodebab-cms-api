@@ -89,7 +89,7 @@ public class EmployeeService {
         employee.setActive(true);
 
         employeeRepo.save(employee);
-        queueNewEmployeeEmails(employee, generatedPassword);
+        queueNewEmployeeEmails(employee, generatedPassword, true);
         return toResponse(employee);
     }
 
@@ -132,7 +132,7 @@ public class EmployeeService {
             employeeRepo.save(employee);
         }
 
-        queueNewEmployeeEmails(employee, generatedPassword);
+        queueNewEmployeeEmails(employee, generatedPassword, true);
         return toResponse(employee);
     }
 
@@ -172,7 +172,7 @@ public class EmployeeService {
         employee.setActive(true);
 
         employeeRepo.save(employee);
-        queueNewEmployeeEmails(employee, generatedPassword);
+        queueNewEmployeeEmails(employee, generatedPassword, false);
         return employee;
     }
 
@@ -200,8 +200,12 @@ public class EmployeeService {
     }
 
     /** Credentials for the new employee, plus a heads-up to the vice managers of their branch. */
-    private void queueNewEmployeeEmails(Employee employee, String generatedPassword) {
-        emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+    private void queueNewEmployeeEmails(Employee employee, String generatedPassword, boolean sendCredentialsNow) {
+        if (sendCredentialsNow) {
+            emailNotificationService.sendEmployeePasswordEmailNow(employee.getEmail(), employee.getName(), generatedPassword);
+        } else {
+            emailNotificationService.queueEmployeePasswordEmail(employee.getEmail(), employee.getName(), generatedPassword);
+        }
         SubOrganization branch = employee.getSubOrganization();
         if (branch == null) return;
         adminRepo.findAllByActiveTrueAndRoleAndSubOrganizationId(Manager.ManagerRole.VICE_MANAGER, branch.getId())

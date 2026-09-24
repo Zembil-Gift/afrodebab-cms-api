@@ -29,11 +29,12 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
  * Owns every outgoing email's content: the default subject/heading/message per notification
- * type, each organization's overrides and email logo, and the shared green-on-black layout.
+ * type, each organization's overrides and email logo, and the shared light layout.
  * Previews, test sends and real sends all render through {@link #render}, so what a manager
  * previews is exactly what recipients get.
  */
@@ -42,6 +43,7 @@ public class EmailTemplateService {
     private static final String DEFAULT_LOGO_URL = "https://www.afrodebab.com/afrodebab-logo.png";
     private static final String DEFAULT_ORG_NAME = "AfroDebab";
     private static final String PASSWORD = "password";
+    private static final String POWERED_BY = "Mahberix";
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*(\\w+)\\s*}}");
 
     private final EmailTemplateRepository templateRepo;
@@ -170,7 +172,8 @@ public class EmailTemplateService {
         String greeting = greeting(values.get("name"));
 
         String html = layout(branding, heading, greeting, paragraphsHtml(message) + detailsHtml(def, values));
-        String text = greeting + "\n\n" + message + detailsText(def, values) + "\n\n- " + branding.name();
+        String text = greeting + "\n\n" + message + detailsText(def, values) + "\n\nKind regards,\n" + branding.name()
+                + "\n\n--\nPowered by " + POWERED_BY;
         return new Rendered(subject, html, text);
     }
 
@@ -206,65 +209,89 @@ public class EmailTemplateService {
 
     private static String paragraphsHtml(String message) {
         return Arrays.stream(message.trim().split("\\n\\s*\\n"))
-                .map(p -> "<p style=\"margin:0 0 14px;\">" + escapeHtml(p.trim()).replace("\n", "<br>") + "</p>")
+                .map(p -> "<p style=\"margin:0 0 16px;\">" + escapeHtml(p.trim()).replace("\n", "<br>") + "</p>")
                 .collect(Collectors.joining());
     }
 
     private static String detailsHtml(Definition def, Map<String, String> values) {
+        String rows;
         if (def.credentials()) {
-            return "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:4px 0 18px;background:#0a0c0b;border:1px solid #232826;border-left:3px solid #34d399;border-radius:10px;\">"
-                    + "<tr><td style=\"padding:16px 18px;font-size:14px;line-height:1.7;color:#e8ede9;\">"
-                    + "<span style=\"color:#9aa8a0;\">Email</span><br>"
-                    + "<strong style=\"color:#ffffff;\">" + escapeHtml(values.get("email")) + "</strong><br>"
-                    + "<span style=\"color:#9aa8a0;\">Temporary password</span><br>"
-                    + "<strong style=\"color:#34d399;font-family:'Courier New',monospace;font-size:16px;letter-spacing:0.5px;\">"
-                    + escapeHtml(values.get(PASSWORD)) + "</strong>"
-                    + "</td></tr></table>";
+            rows = detailRow("Email", escapeHtml(values.get("email")), true)
+                    + detailRow("Temporary password", "<span style=\"display:inline-block;padding:3px 10px;background:" + MINT + ";border:1px solid " + MINT_BORDER
+                    + ";border-radius:6px;color:" + BRAND + ";font-family:'SFMono-Regular',Consolas,'Courier New',monospace;font-size:15px;font-weight:bold;letter-spacing:0.5px;\">"
+                    + escapeHtml(values.get(PASSWORD)) + "</span>", false);
+        } else {
+            List<Row> present = def.rows().stream().filter(r -> hasText(values.get(r.key()))).toList();
+            rows = IntStream.range(0, present.size())
+                    .mapToObj(i -> detailRow(present.get(i).label(), escapeHtml(values.get(present.get(i).key())), i == 0))
+                    .collect(Collectors.joining());
         }
-        String rows = def.rows().stream()
-                .filter(r -> hasText(values.get(r.key())))
-                .map(r -> "<tr><td style=\"padding:6px 0;color:#9aa8a0;font-size:14px;width:45%;vertical-align:top;\">" + escapeHtml(r.label())
-                        + "</td><td style=\"padding:6px 0;color:#ffffff;font-size:14px;font-weight:bold;\">" + escapeHtml(values.get(r.key())) + "</td></tr>")
-                .collect(Collectors.joining());
         if (rows.isEmpty()) return "";
-        return "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:4px 0 18px;background:#0a0c0b;border:1px solid #232826;border-left:3px solid #34d399;border-radius:10px;\">"
-                + "<tr><td style=\"padding:10px 18px;\"><table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">"
-                + rows + "</table></td></tr></table>";
+        return "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:8px 0 20px;background:" + PANEL
+                + ";border:1px solid " + LINE + ";border-radius:12px;border-collapse:separate;\">" + rows + "</table>";
+    }
+
+    // Label and value share one row so each detail reads as "Email - someone@example.com".
+    private static String detailRow(String label, String valueHtml, boolean first) {
+        String divider = first ? "" : "border-top:1px solid " + LINE + ";";
+        return "<tr>"
+                + "<td style=\"" + divider + "padding:13px 18px;width:38%;vertical-align:middle;font-family:" + FONT + ";font-size:13px;color:" + MUTED + ";\">"
+                + escapeHtml(label) + "</td>"
+                + "<td style=\"" + divider + "padding:13px 18px;vertical-align:middle;font-family:" + FONT + ";font-size:14px;font-weight:bold;color:" + INK
+                + ";word-break:break-word;\">" + valueHtml + "</td>"
+                + "</tr>";
     }
 
     private static String detailsText(Definition def, Map<String, String> values) {
         if (def.credentials()) {
-            return "\n\nEmail: " + values.get("email") + "\nTemporary password: " + values.get(PASSWORD);
+            return "\n\nEmail - " + values.get("email") + "\nTemporary password - " + values.get(PASSWORD);
         }
         String rows = def.rows().stream()
                 .filter(r -> hasText(values.get(r.key())))
-                .map(r -> r.label() + ": " + values.get(r.key()))
+                .map(r -> r.label() + " - " + values.get(r.key()))
                 .collect(Collectors.joining("\n"));
         return rows.isEmpty() ? "" : "\n\n" + rows;
     }
 
-    // Solid colors only (no gradients/CSS vars): Outlook and Gmail strip them. Palette mirrors frontend/app/globals.css.
+    // Light palette on solid colors only (no gradients/CSS vars): Outlook and Gmail strip them,
+    // and light emails survive client dark-mode inversion far better than dark ones.
+    private static final String FONT = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+    private static final String BRAND = "#047857";
+    private static final String INK = "#0b2a1e";
+    private static final String BODY = "#4b5a53";
+    private static final String MUTED = "#6b7a73";
+    private static final String LINE = "#e3ebe7";
+    private static final String PANEL = "#f6faf8";
+    private static final String PAGE = "#eef3f0";
+    private static final String MINT = "#ecfdf5";
+    private static final String MINT_BORDER = "#a7f3d0";
+
     private static String layout(Branding branding, String heading, String greeting, String bodyHtml) {
         return "<!doctype html>"
                 + "<html><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
-                + "<meta name=\"color-scheme\" content=\"dark\"><meta name=\"supported-color-schemes\" content=\"dark\"></head>"
-                + "<body style=\"margin:0;padding:0;background:#0a0c0b;font-family:Arial,Helvetica,sans-serif;color:#e8ede9;\">"
-                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"#0a0c0b\" style=\"padding:24px 12px;background:#0a0c0b;\">"
-                + "<tr><td align=\"center\">"
-                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"#121614\" style=\"max-width:620px;background:#121614;border-radius:14px;overflow:hidden;border:1px solid #232826;\">"
-                + "<tr><td bgcolor=\"#0f1412\" style=\"background:#0f1412;padding:24px 24px 20px;text-align:center;border-bottom:3px solid #34d399;\">"
-                + "<img src=\"" + escapeHtml(branding.logoUrl()) + "\" alt=\"" + escapeHtml(branding.name()) + "\" style=\"max-width:190px;max-height:80px;height:auto;display:inline-block;\">"
+                + "<meta name=\"color-scheme\" content=\"light\"><meta name=\"supported-color-schemes\" content=\"light\"></head>"
+                + "<body style=\"margin:0;padding:0;background:" + PAGE + ";font-family:" + FONT + ";color:" + BODY + ";\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"" + PAGE + "\" style=\"background:" + PAGE + ";\">"
+                + "<tr><td align=\"center\" style=\"padding:32px 12px;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" bgcolor=\"#ffffff\" style=\"max-width:600px;background:#ffffff;border:1px solid " + LINE
+                + ";border-top:4px solid " + BRAND + ";border-radius:14px;border-collapse:separate;\">"
+                + "<tr><td style=\"padding:28px 32px 22px;text-align:center;border-bottom:1px solid " + LINE + ";\">"
+                + "<img src=\"" + escapeHtml(branding.logoUrl()) + "\" alt=\"" + escapeHtml(branding.name())
+                + "\" style=\"max-width:170px;max-height:64px;height:auto;display:inline-block;border:0;\">"
                 + "</td></tr>"
-                + "<tr><td style=\"padding:28px 26px 18px;\">"
-                + "<h1 style=\"margin:0 0 14px;font-size:24px;line-height:1.25;color:#34d399;\">" + escapeHtml(heading) + "</h1>"
-                + "<p style=\"margin:0 0 14px;font-size:16px;line-height:1.6;color:#ffffff;\">" + escapeHtml(greeting) + "</p>"
-                + "<div style=\"font-size:15px;line-height:1.7;color:#cdd6d1;\">" + bodyHtml + "</div>"
+                + "<tr><td style=\"padding:32px 32px 12px;font-family:" + FONT + ";\">"
+                + "<h1 style=\"margin:0 0 18px;font-size:22px;line-height:1.3;font-weight:bold;color:" + INK + ";\">" + escapeHtml(heading) + "</h1>"
+                + "<p style=\"margin:0 0 16px;font-size:16px;line-height:1.6;color:" + INK + ";\">" + escapeHtml(greeting) + "</p>"
+                + "<div style=\"font-size:15px;line-height:1.7;color:" + BODY + ";\">" + bodyHtml + "</div>"
                 + "</td></tr>"
-                + "<tr><td style=\"padding:18px 26px 26px;border-top:1px solid #232826;\">"
-                + "<p style=\"margin:0;font-size:13px;line-height:1.6;color:#9aa8a0;\">Sent by <span style=\"color:#34d399;\">"
-                + escapeHtml(branding.name()) + "</span></p>"
+                + "<tr><td style=\"padding:4px 32px 28px;font-family:" + FONT + ";\">"
+                + "<p style=\"margin:0;padding-top:18px;border-top:1px solid " + LINE + ";font-size:13px;line-height:1.6;color:" + MUTED + ";\">"
+                + "Kind regards,<br><strong style=\"color:" + INK + ";\">" + escapeHtml(branding.name()) + "</strong></p>"
                 + "</td></tr>"
                 + "</table>"
+                + "<p style=\"margin:20px 0 0;font-family:" + FONT + ";font-size:12px;line-height:1.6;color:" + MUTED + ";text-align:center;\">"
+                + "Powered by <strong style=\"color:" + BRAND + ";\">" + POWERED_BY + "</strong>"
+                + "<br><span style=\"font-size:10px;letter-spacing:1.5px;color:#9aa8a1;\">PEOPLE. WORK. CONNECTED.</span></p>"
                 + "</td></tr></table>"
                 + "</body></html>";
     }

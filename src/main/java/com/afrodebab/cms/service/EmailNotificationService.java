@@ -58,6 +58,13 @@ public class EmailNotificationService {
                 vars("name", recipientName, PASSWORD, protectPassword(generatedPassword)));
     }
 
+    /** Manually added employees are one-offs, so their credentials skip the org's dispatch schedule; a failed send stays queued for it. */
+    @Transactional
+    public void sendEmployeePasswordEmailNow(String recipientEmail, String recipientName, String generatedPassword) {
+        sendNotification(queue(NotificationType.EMPLOYEE_PASSWORD, recipientEmail,
+                vars("name", recipientName, PASSWORD, protectPassword(generatedPassword))));
+    }
+
     @Transactional
     public void queueEmployeeEmailChangedEmail(String recipientEmail, String recipientName, String generatedPassword) {
         queue(NotificationType.EMPLOYEE_EMAIL_CHANGED, recipientEmail,
@@ -156,7 +163,7 @@ public class EmailNotificationService {
                 .forEach(this::sendNotification);
     }
 
-    private void queue(NotificationType type, String recipientEmail, Map<String, String> vars) {
+    private EmailNotification queue(NotificationType type, String recipientEmail, Map<String, String> vars) {
         String serializedPayload;
         try {
             serializedPayload = objectMapper.writeValueAsString(vars);
@@ -170,7 +177,7 @@ public class EmailNotificationService {
         notification.setRecipientEmail(recipientEmail);
         notification.setSubject(emailTemplateService.subject(type, withRecipient(vars, recipientEmail), TenantContext.get()));
         notification.setPayload(serializedPayload);
-        emailNotificationRepo.save(notification);
+        return emailNotificationRepo.save(notification);
     }
 
     private void sendNotification(EmailNotification notification) {
