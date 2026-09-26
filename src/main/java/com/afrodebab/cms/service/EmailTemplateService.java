@@ -14,6 +14,7 @@ import com.afrodebab.cms.jpa.repository.EmailTemplateRepository;
 import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.OrganizationRepository;
 import com.afrodebab.cms.tenant.TenantContext;
+import com.afrodebab.cms.util.SimpleMarkdown;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -132,6 +133,17 @@ public class EmailTemplateService {
         return new EmailPreviewResponse(rendered.subject(), rendered.html(), rendered.text());
     }
 
+    /** Renders an unsent broadcast exactly as recipients will receive it. */
+    @Transactional(readOnly = true)
+    public EmailPreviewResponse previewBroadcast(String subject, String body, String senderName) {
+        Map<String, String> vars = new HashMap<>(DEFINITIONS.get(NotificationType.BROADCAST).sample());
+        vars.put("subject", subject);
+        vars.put("body", body);
+        vars.put("sender", senderName);
+        Rendered rendered = render(NotificationType.BROADCAST, vars, TenantContext.get(), null);
+        return new EmailPreviewResponse(rendered.subject(), rendered.html(), rendered.text());
+    }
+
     /** Sends the draft, filled with sample data, to the logged-in manager's own inbox. */
     @Transactional(readOnly = true)
     public Map<String, String> sendTest(String type, EmailTemplateUpdateRequest draft, String viewerEmail) {
@@ -172,8 +184,9 @@ public class EmailTemplateService {
         String heading = fill(pick(override == null ? null : override.heading(), def.heading()), values);
         String message = fill(pick(override == null ? null : override.message(), def.message()), values);
         String greeting = greeting(values.get("name"));
+        String messageHtml = type == NotificationType.BROADCAST ? SimpleMarkdown.toHtml(message) : paragraphsHtml(message);
 
-        String html = layout(branding, heading, greeting, paragraphsHtml(message) + detailsHtml(def, values));
+        String html = layout(branding, heading, greeting, messageHtml + detailsHtml(def, values));
         String text = greeting + "\n\n" + message + detailsText(def, values) + "\n\nKind regards,\n" + branding.name()
                 + "\n\n--\nPowered by " + POWERED_BY;
         return new Rendered(subject, html, text);
