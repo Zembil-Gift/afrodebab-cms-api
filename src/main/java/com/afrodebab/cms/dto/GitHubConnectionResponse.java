@@ -8,6 +8,7 @@ import java.util.List;
  * branch (subOrganizationId/Name); managers pick branches per org instead (both null).
  */
 public record GitHubConnectionResponse(boolean connected,
+                                       String account,
                                        List<GitHubOrgDto> selectedOrgs,
                                        Long subOrganizationId,
                                        String subOrganizationName,

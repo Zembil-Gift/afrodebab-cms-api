@@ -56,6 +56,10 @@ public class Manager extends TenantEntity {
     @Column(name = "trello_token", columnDefinition = "TEXT")
     private String trelloToken;
 
+    /** Connected Trello account: email, or @username when Trello doesn't share one. */
+    @Column(name = "trello_account")
+    private String trelloAccount;
+
     /** Trello boards this manager chose to track. May span multiple boards in one org. */
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "manager_trello_boards", joinColumns = @JoinColumn(name = "manager_id"))
@@ -71,6 +75,10 @@ public class Manager extends TenantEntity {
     /** This manager's personal GitHub OAuth token, encrypted at rest. Null until they connect. */
     @Column(name = "github_token", columnDefinition = "TEXT")
     private String githubToken;
+
+    /** Connected GitHub account: email, or @login when GitHub doesn't share one. */
+    @Column(name = "github_account")
+    private String githubAccount;
 
     /** GitHub organizations this manager chose to track. May span multiple orgs. */
     @ElementCollection(fetch = FetchType.LAZY)

@@ -8,6 +8,7 @@ import java.util.List;
  * branch (subOrganizationId/Name); managers pick branches per board instead (both null).
  */
 public record TrelloConnectionResponse(boolean connected,
+                                       String account,
                                        List<TrelloBoardDto> selectedBoards,
                                        Long subOrganizationId,
                                        String subOrganizationName,

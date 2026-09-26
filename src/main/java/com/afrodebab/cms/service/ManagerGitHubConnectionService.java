@@ -22,6 +22,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -75,13 +76,20 @@ public class ManagerGitHubConnectionService {
         }
         Manager manager = currentManager();
         manager.setGithubToken(cipher.encrypt(token));
+        manager.setGithubAccount(fetchAccount(token));
         managerRepo.save(manager);
         return toResponse(manager);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public GitHubConnectionResponse status() {
-        return toResponse(currentManager());
+        Manager manager = currentManager();
+        // Connections made before the account was recorded get it filled in on first view.
+        if (manager.getGithubToken() != null && manager.getGithubAccount() == null) {
+            manager.setGithubAccount(fetchAccount(cipher.decrypt(manager.getGithubToken())));
+            managerRepo.save(manager);
+        }
+        return toResponse(manager);
     }
 
     /** Live list of the manager's GitHub orgs, so the frontend can present a picker. */
@@ -118,6 +126,7 @@ public class ManagerGitHubConnectionService {
     public void disconnect() {
         Manager manager = currentManager();
         manager.setGithubToken(null);
+        manager.setGithubAccount(null);
         manager.getGithubOrgs().clear();
         manager.getGithubOrgSubOrgs().clear();
         managerRepo.save(manager);
@@ -154,7 +163,7 @@ public class ManagerGitHubConnectionService {
                 .toList();
         boolean vice = manager.getRole() == Manager.ManagerRole.VICE_MANAGER;
         SubOrganization branch = vice ? manager.getSubOrganization() : null;
-        return new GitHubConnectionResponse(manager.getGithubToken() != null, orgs,
+        return new GitHubConnectionResponse(manager.getGithubToken() != null, manager.getGithubAccount(), orgs,
                 branch == null ? null : branch.getId(), branch == null ? null : branch.getName(), vice);
     }
 
@@ -180,30 +189,60 @@ public class ManagerGitHubConnectionService {
         }
     }
 
-    private List<GitHubOrgDto> fetchOrgs(String token) {
+    /** Primary email (needs "user:email"), else the public one, else @login; null if unreachable. */
+    private String fetchAccount(String token) {
         try {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.github.com/user/orgs?per_page=100"))
-                    .header("Authorization", "Bearer " + token)
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "AfroDebab-CMS-API")
-                    .GET()
-                    .build();
-            HttpResponse<String> res = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (res.statusCode() != 200) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                        "GitHub orgs request failed: " + res.statusCode());
-            }
-            JsonNode root = objectMapper.readTree(res.body());
-            List<GitHubOrgDto> orgs = new ArrayList<>();
-            if (root.isArray()) {
-                for (JsonNode o : root) {
-                    String login = o.path("login").asText("");
-                    String name = o.path("name").asText("");
-                    orgs.add(new GitHubOrgDto(login, name.isBlank() ? login : name, null));
+            JsonNode emails = getJson(token, "https://api.github.com/user/emails");
+            if (emails != null) {
+                for (JsonNode e : emails) {
+                    if (e.path("primary").asBoolean()) return e.path("email").asText();
                 }
             }
-            return orgs;
+            JsonNode user = getJson(token, "https://api.github.com/user");
+            if (user == null) return null;
+            String email = user.path("email").asText("");
+            return email.isBlank() ? "@" + user.path("login").asText("") : email;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private JsonNode getJson(String token, String url) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Authorization", "Bearer " + token)
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "AfroDebab-CMS-API")
+                .GET()
+                .build();
+        HttpResponse<String> res = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        return res.statusCode() == 200 ? objectMapper.readTree(res.body()) : null;
+    }
+
+    /**
+     * Orgs that restrict OAuth apps are hidden from /user/orgs until an owner grants access, so
+     * the user's public memberships are merged in too; syncing only reads public org events,
+     * which those restrictions don't block.
+     */
+    private List<GitHubOrgDto> fetchOrgs(String token) {
+        try {
+            JsonNode user = getJson(token, "https://api.github.com/user");
+            JsonNode authorized = getJson(token, "https://api.github.com/user/orgs?per_page=100");
+            if (user == null || authorized == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "GitHub orgs request failed");
+            }
+            JsonNode publicOrgs = getJson(token, "https://api.github.com/users/"
+                    + user.path("login").asText() + "/orgs?per_page=100");
+            Map<String, GitHubOrgDto> orgs = new LinkedHashMap<>();
+            for (JsonNode list : new JsonNode[]{authorized, publicOrgs}) {
+                if (list == null) continue;
+                for (JsonNode o : list) {
+                    String login = o.path("login").asText("");
+                    String name = o.path("name").asText("");
+                    orgs.putIfAbsent(login, new GitHubOrgDto(login, name.isBlank() ? login : name, null));
+                }
+            }
+            return new ArrayList<>(orgs.values());
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {

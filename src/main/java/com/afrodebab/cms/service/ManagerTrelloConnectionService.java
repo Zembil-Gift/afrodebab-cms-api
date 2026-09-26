@@ -66,18 +66,26 @@ public class ManagerTrelloConnectionService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Trello integration is not configured (TRELLO_API missing)");
         }
-        if (!validateToken(token)) {
+        String account = fetchAccount(token);
+        if (account == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid Trello token");
         }
         Manager manager = currentManager();
         manager.setTrelloToken(cipher.encrypt(token));
+        manager.setTrelloAccount(account);
         managerRepo.save(manager);
         return toResponse(manager);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TrelloConnectionResponse status() {
-        return toResponse(currentManager());
+        Manager manager = currentManager();
+        // Connections made before the account was recorded get it filled in on first view.
+        if (manager.getTrelloToken() != null && manager.getTrelloAccount() == null) {
+            manager.setTrelloAccount(fetchAccount(cipher.decrypt(manager.getTrelloToken())));
+            managerRepo.save(manager);
+        }
+        return toResponse(manager);
     }
 
     /** Live list of the manager's Trello boards, so the frontend can present a picker. */
@@ -114,6 +122,7 @@ public class ManagerTrelloConnectionService {
     public void disconnect() {
         Manager manager = currentManager();
         manager.setTrelloToken(null);
+        manager.setTrelloAccount(null);
         manager.getTrelloBoards().clear();
         manager.getTrelloBoardSubOrgs().clear();
         managerRepo.save(manager);
@@ -150,18 +159,22 @@ public class ManagerTrelloConnectionService {
                 .toList();
         boolean vice = manager.getRole() == Manager.ManagerRole.VICE_MANAGER;
         SubOrganization branch = vice ? manager.getSubOrganization() : null;
-        return new TrelloConnectionResponse(manager.getTrelloToken() != null, boards,
+        return new TrelloConnectionResponse(manager.getTrelloToken() != null, manager.getTrelloAccount(), boards,
                 branch == null ? null : branch.getId(), branch == null ? null : branch.getName(), vice);
     }
 
-    private boolean validateToken(String token) {
+    /** Email (needs the "account" scope), else @username; null when the token is invalid. */
+    private String fetchAccount(String token) {
         try {
-            String url = "https://api.trello.com/1/members/me?fields=id&key="
+            String url = "https://api.trello.com/1/members/me?fields=username,email&key="
                     + encode(trelloKey) + "&token=" + encode(token);
             HttpResponse<String> res = httpClient.send(get(url), HttpResponse.BodyHandlers.ofString());
-            return res.statusCode() == 200;
+            if (res.statusCode() != 200) return null;
+            JsonNode me = objectMapper.readTree(res.body());
+            String email = me.path("email").asText("");
+            return email.isBlank() ? "@" + me.path("username").asText("") : email;
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
 
