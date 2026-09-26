@@ -46,6 +46,8 @@ services:
       FLYWAY_PASSWORD: ${DB_PASSWORD}
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
       FLYWAY_BASELINE_ON_MIGRATE: "true"
+      # V38 was deployed before V34–V37 were committed; lets those lower versions apply late.
+      FLYWAY_OUT_OF_ORDER: "true"
     volumes:
       - ./migrations:/flyway/sql:ro
     depends_on:
