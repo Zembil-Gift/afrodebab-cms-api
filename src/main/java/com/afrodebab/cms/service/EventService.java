@@ -7,19 +7,38 @@ import com.afrodebab.cms.dto.EventUpdateRequest;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Event;
 import com.afrodebab.cms.jpa.repository.EventRepository;
+import com.afrodebab.cms.jpa.entity.Organization;
+import com.afrodebab.cms.jpa.repository.OrganizationRepository;
+import com.afrodebab.cms.tenant.TenantContext;
+import com.afrodebab.cms.util.ICalendar;
 import com.afrodebab.cms.util.SlugUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+
 @Service
 @Transactional
 public class EventService {
 
+    // Past events stay in subscribers' calendars for a while, then drop out of the feed.
+    private static final Duration FEED_HISTORY = Duration.ofDays(90);
+
     private final EventRepository repo;
-    public EventService(EventRepository repo) {
+    private final OrganizationRepository organizationRepo;
+    private final String frontendUrl;
+
+    public EventService(EventRepository repo,
+                        OrganizationRepository organizationRepo,
+                        @Value("${app.frontend-url:}") String frontendUrl) {
         this.repo = repo;
+        this.organizationRepo = organizationRepo;
+        this.frontendUrl = frontendUrl.replaceAll("/+$", "");
     }
 
     // public
@@ -33,6 +52,25 @@ public class EventService {
         Event e = repo.findBySlugAndStatus(slug, Event.Status.PUBLISHED)
                 .orElseThrow(() -> new NotFoundException("Event not found"));
         return toResponse(e);
+    }
+
+    /** Subscribable iCalendar feed of the org's published events (Google/Outlook/Apple "subscribe by URL"). */
+    @Transactional(readOnly = true)
+    public String calendarFeed() {
+        Organization org = currentOrgOrThrow();
+        List<ICalendar.Event> events = repo
+                .findAllByStatusAndStartDateAfterOrderByStartDateAsc(Event.Status.PUBLISHED, Instant.now().minus(FEED_HISTORY))
+                .stream().map(e -> toCalendarEvent(e, org)).toList();
+        return ICalendar.write(org.getName() + " events", ICalendar.Method.PUBLISH, events);
+    }
+
+    /** One published event as a downloadable .ics ("Add to calendar"). */
+    @Transactional(readOnly = true)
+    public String calendarFor(String slug) {
+        Organization org = currentOrgOrThrow();
+        Event e = repo.findBySlugAndStatus(slug, Event.Status.PUBLISHED)
+                .orElseThrow(() -> new NotFoundException("Event not found"));
+        return ICalendar.write(null, ICalendar.Method.PUBLISH, List.of(toCalendarEvent(e, org)));
     }
 
     // manager: list ALL of the current tenant's events (any status). Tenant-scoped by @TenantId.
@@ -98,6 +136,19 @@ public class EventService {
         int i = 2;
         while (repo.existsBySlug(slug)) slug = base + "-" + (i++);
         return slug;
+    }
+
+    private ICalendar.Event toCalendarEvent(Event e, Organization org) {
+        String url = frontendUrl.isEmpty() ? e.getRegistrationUrl() : frontendUrl + "/o/" + org.getSlug() + "/events/" + e.getSlug();
+        String location = e.getEventType() == Event.EventType.ONLINE && (e.getLocation() == null || e.getLocation().isBlank())
+                ? "Online" : e.getLocation();
+        return new ICalendar.Event("event-" + e.getId() + "@mahberix", e.getStartDate(), e.getEndDate(),
+                e.getTitle(), e.getDescription(), location, url);
+    }
+
+    private Organization currentOrgOrThrow() {
+        return organizationRepo.findById(TenantContext.get())
+                .orElseThrow(() -> new NotFoundException("Organization not found"));
     }
 
     private EventResponse toResponse(Event e) {

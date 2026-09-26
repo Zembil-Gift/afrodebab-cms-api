@@ -2,6 +2,7 @@ package com.afrodebab.cms.service;
 
 import com.afrodebab.cms.dto.OrgCreateRequest;
 import com.afrodebab.cms.dto.OrgProfileUpdateRequest;
+import com.afrodebab.cms.dto.OrgPublicInfo;
 import com.afrodebab.cms.dto.OrgResponse;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
@@ -128,6 +129,12 @@ public class OrganizationService {
     @Transactional(readOnly = true)
     public OrgResponse getMyOrg() {
         return OrgResponse.from(currentOrg());
+    }
+
+    /** Public profile of the caller's org, e.g. so employees can build the events calendar URL. */
+    @Transactional(readOnly = true)
+    public OrgPublicInfo getMyOrgPublicInfo() {
+        return OrgPublicInfo.from(currentOrg());
     }
 
     @Transactional

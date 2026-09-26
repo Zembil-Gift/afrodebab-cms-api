@@ -7,9 +7,11 @@ import com.afrodebab.cms.dto.EmployeeConnectedAccountsResponse;
 import com.afrodebab.cms.dto.EmployeeConnectedAccountsUpdateRequest;
 import com.afrodebab.cms.dto.EmployeePaymentSelfResponse;
 import com.afrodebab.cms.dto.EmployeeResponse;
+import com.afrodebab.cms.dto.OrgPublicInfo;
 import com.afrodebab.cms.service.EmployeeAttendanceService;
 import com.afrodebab.cms.service.EmployeePaymentService;
 import com.afrodebab.cms.service.EmployeeService;
+import com.afrodebab.cms.service.OrganizationService;
 import com.afrodebab.cms.tenant.TenantContext;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,13 +28,16 @@ public class EmployeeSelfController {
     private final EmployeeService service;
     private final EmployeeAttendanceService attendanceService;
     private final EmployeePaymentService employeePaymentService;
+    private final OrganizationService organizationService;
 
     public EmployeeSelfController(EmployeeService service,
                                   EmployeeAttendanceService attendanceService,
-                                  EmployeePaymentService employeePaymentService) {
+                                  EmployeePaymentService employeePaymentService,
+                                  OrganizationService organizationService) {
         this.service = service;
         this.attendanceService = attendanceService;
         this.employeePaymentService = employeePaymentService;
+        this.organizationService = organizationService;
     }
 
     /**
@@ -57,6 +62,11 @@ public class EmployeeSelfController {
 
 
 
+
+    @GetMapping("/organization")
+    public OrgPublicInfo organization() {
+        return organizationService.getMyOrgPublicInfo();
+    }
 
     @GetMapping("/connected-accounts")
     public EmployeeConnectedAccountsResponse connectedAccounts(Authentication authentication) {
