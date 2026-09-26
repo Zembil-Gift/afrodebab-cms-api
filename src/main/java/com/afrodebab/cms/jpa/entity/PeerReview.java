@@ -17,7 +17,7 @@ import java.time.LocalDate;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PeerReview {
+public class PeerReview extends com.afrodebab.cms.tenant.TenantEntity {
     public enum Rating {
         EXCEEDS_THE_BAR,
         MEETS_THE_BAR,

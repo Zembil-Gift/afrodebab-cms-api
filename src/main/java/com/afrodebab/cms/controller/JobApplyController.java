@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Public - JobApply")
 @Validated
 @RestController
-@RequestMapping("/jobs")
+@RequestMapping("/public/{orgSlug}/jobs")
 public class JobApplyController {
 
     private final JobApplicationService service;

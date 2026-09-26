@@ -3,8 +3,6 @@ package com.afrodebab.cms.security;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.web.cors.CorsConfiguration;
@@ -25,7 +23,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(java.util.List.of( "https://profile-test-brown.vercel.app","https://www.afrodebab.com", "http://localhost:3000"));
+        config.setAllowedOrigins(java.util.List.of( "https://profile-test-brown.vercel.app","https://www.afrodebab.com", "http://localhost:3000", "https://afrodebab.vercel.app"));
         config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(java.util.List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -47,11 +45,18 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
 
-                        // admin auth login must be public
+                        // auth logins must be public
                         .requestMatchers("/admin/auth/**").permitAll()
+                        .requestMatchers("/manager/auth/**").permitAll()
                         .requestMatchers("/employee/auth/**").permitAll()
 
-                        // attendance endpoints use a custom header instead of JWT
+                        // anonymous, org-scoped public content (blog/events/jobs/apply)
+                        .requestMatchers("/public/**").permitAll()
+
+                        // public self-serve "Start free" signup submission
+                        .requestMatchers(HttpMethod.POST, "/signup").permitAll()
+
+                        // attendance endpoints resolve the employee (and org) from the request body
                         .requestMatchers(
                                 HttpMethod.POST,
                                 "/employee/me/clock-in",
@@ -60,11 +65,14 @@ public class SecurityConfig {
                                 "/employee/me/lunch-break-out"
                         ).permitAll()
 
-                        // all admin endpoints require JWT
+                        // platform admin (global): organization CRUD
                         .requestMatchers("/admin/**").hasRole("ADMIN")
+                        // per-org management (formerly /admin/**)
+                        .requestMatchers("/manager/**").hasRole("MANAGER")
+                        // employee self-service
                         .requestMatchers("/employee/me/**").hasRole("EMPLOYEE")
 
-                        // public endpoints
+                        // remaining endpoints
                         .anyRequest().permitAll()
                 )
                 // IMPORTANT: add JWT filter into Spring Security chain
@@ -76,10 +84,5 @@ public class SecurityConfig {
     @Bean
     public org.springframework.security.crypto.password.PasswordEncoder passwordEncoder() {
         return new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
     }
 }

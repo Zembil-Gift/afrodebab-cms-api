@@ -14,7 +14,7 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LeadershipPrinciple {
+public class LeadershipPrinciple extends com.afrodebab.cms.tenant.TenantEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

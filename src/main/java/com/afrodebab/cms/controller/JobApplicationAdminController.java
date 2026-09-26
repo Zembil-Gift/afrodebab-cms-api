@@ -18,7 +18,7 @@ import java.util.List;
 
 @Tag(name = "Admin - JobApplicationAdmin")
 @RestController
-@RequestMapping("/admin/job-applications")
+@RequestMapping("/manager/job-applications")
 public class JobApplicationAdminController {
 
     private final JobApplicationService service;

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,25 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findAllByActiveTrueAndSalaryEffectiveDateIsNotNullAndSalaryAmountMinorIsNotNull();
     List<Employee> findAllByActiveTrueOrderByNameAsc();
     List<Employee> findAllByActiveTrueAndIdNotOrderByNameAsc(Long id);
+
+    @Query("""
+            SELECT e FROM Employee e
+            WHERE e.active = true
+              AND e.id != :reviewerId
+              AND e.id NOT IN (
+                  SELECT pr.reviewee.id FROM PeerReview pr
+                  WHERE pr.reviewer.id = :reviewerId
+                    AND pr.periodStart = :periodStart
+                    AND pr.periodEnd = :periodEnd
+                    AND pr.rating IS NOT NULL
+              )
+            ORDER BY e.name ASC
+            """)
+    List<Employee> findUnreviewedEmployees(
+            @Param("reviewerId") Long reviewerId,
+            @Param("periodStart") LocalDate periodStart,
+            @Param("periodEnd") LocalDate periodEnd
+    );
 
     @Query(
             value = """

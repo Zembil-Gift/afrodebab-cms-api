@@ -14,7 +14,7 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class EmailNotification {
+public class EmailNotification extends com.afrodebab.cms.tenant.TenantEntity {
     public enum DeliveryStatus {
         PENDING,
         SENT,

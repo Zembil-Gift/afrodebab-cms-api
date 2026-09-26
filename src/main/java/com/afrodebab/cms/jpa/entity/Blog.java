@@ -14,7 +14,7 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Blog {
+public class Blog extends com.afrodebab.cms.tenant.TenantEntity {
     public enum Status { DRAFT, PUBLISHED }
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)

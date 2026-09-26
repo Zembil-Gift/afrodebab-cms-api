@@ -8,13 +8,17 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 
+/**
+ * Global platform operator. Not scoped to any organization. Manages Organizations
+ * (create/list/suspend) and provisions each org's first Manager.
+ */
 @Data
 @Entity
-@Table(name = "admins")
+@Table(name = "platform_admins")
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Admin {
+public class PlatformAdmin {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -29,10 +33,10 @@ public class Admin {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
-    @Column(name="created_at", nullable=false, updatable=false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(name="updated_at", nullable=false)
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     @PrePersist void prePersist() { createdAt = Instant.now(); updatedAt = createdAt; }

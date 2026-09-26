@@ -42,6 +42,16 @@ public class CloudflareR2Service {
         return uploadFile("employees/" + employeeId, file, "photo", "Failed to upload employee photo");
     }
 
+    public String uploadOrgLogo(Long orgId, MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new BadRequestException("Logo file is required");
+        return uploadFile("organizations/" + orgId + "/logo", file, "logo", "Failed to upload organization logo");
+    }
+
+    public String uploadOrgCover(Long orgId, MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new BadRequestException("Cover file is required");
+        return uploadFile("organizations/" + orgId + "/cover", file, "cover", "Failed to upload organization cover");
+    }
+
     public String uploadJobApplicationResume(Long applicationId, MultipartFile file) {
         if (file == null || file.isEmpty()) throw new BadRequestException("Resume file is required");
         return uploadFile("job-applications/" + applicationId, file, "resume", "Failed to upload application resume");

@@ -21,7 +21,7 @@ import java.time.LocalDate;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PeerReviewPeriod {
+public class PeerReviewPeriod extends com.afrodebab.cms.tenant.TenantEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

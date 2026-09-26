@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Admin - Email Notifications")
 @RestController
-@RequestMapping("/admin/email-notifications")
+@RequestMapping("/manager/email-notifications")
 public class EmailNotificationAdminController {
     private final EmailNotificationService emailNotificationService;
 

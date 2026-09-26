@@ -27,7 +27,7 @@ import java.util.List;
 
 @Tag(name = "Admin - Metrics")
 @RestController
-@RequestMapping({"/admin/metrics", "/api/admin/metrics"})
+@RequestMapping({"/manager/metrics", "/api/manager/metrics"})
 public class AdminMetricsController {
     private final MetricsService metricsService;
     private final PeerReviewService peerReviewService;
@@ -146,6 +146,14 @@ public class AdminMetricsController {
     @GetMapping("/peer-reviews/periods/{periodId}/results")
     public PeerReviewPeriodResultsResponse peerReviewResults(@PathVariable Long periodId) {
         return peerReviewService.getPeriodResults(periodId);
+    }
+
+    @GetMapping("/peer-reviews/periods/{periodId}/comments/{employeeId}")
+    public List<String> employeePeerReviewComments(
+            @PathVariable Long periodId,
+            @PathVariable Long employeeId
+    ) {
+        return peerReviewService.getEmployeePeriodComments(periodId, employeeId);
     }
 
     @GetMapping("/peer-reviews/available-employees")

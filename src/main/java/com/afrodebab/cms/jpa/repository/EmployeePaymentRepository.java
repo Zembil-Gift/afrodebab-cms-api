@@ -33,17 +33,26 @@ public interface EmployeePaymentRepository extends JpaRepository<EmployeePayment
     @Query(
             value = """
                     INSERT INTO employee_payments (
-                        employee_id, cycle_start_date, due_date, amount_minor, status, created_at, updated_at
+                        organization_id, employee_id, cycle_start_date, due_date, amount_minor,
+                        gross_amount_minor, income_tax_minor, employee_pension_minor, employer_pension_minor,
+                        status, created_at, updated_at
                     ) VALUES (
-                        :employeeId, :cycleStartDate, :dueDate, :amountMinor, :status, NOW(), NOW()
+                        :organizationId, :employeeId, :cycleStartDate, :dueDate, :amountMinor,
+                        :grossAmountMinor, :incomeTaxMinor, :employeePensionMinor, :employerPensionMinor,
+                        :status, NOW(), NOW()
                     )
                     ON CONFLICT (employee_id, cycle_start_date) DO NOTHING
                     """,
             nativeQuery = true
     )
-    int insertPendingIfAbsent(@Param("employeeId") Long employeeId,
+    int insertPendingIfAbsent(@Param("organizationId") Long organizationId,
+                              @Param("employeeId") Long employeeId,
                               @Param("cycleStartDate") LocalDate cycleStartDate,
                               @Param("dueDate") LocalDate dueDate,
                               @Param("amountMinor") Long amountMinor,
+                              @Param("grossAmountMinor") Long grossAmountMinor,
+                              @Param("incomeTaxMinor") Long incomeTaxMinor,
+                              @Param("employeePensionMinor") Long employeePensionMinor,
+                              @Param("employerPensionMinor") Long employerPensionMinor,
                               @Param("status") String status);
 }

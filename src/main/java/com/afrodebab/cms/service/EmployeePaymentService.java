@@ -1,13 +1,15 @@
 package com.afrodebab.cms.service;
 
 import com.afrodebab.cms.dto.EmployeePaymentResponse;
+import com.afrodebab.cms.dto.EmployeePaymentSelfResponse;
 import com.afrodebab.cms.dto.MarkEmployeePaymentPaidRequest;
+import com.afrodebab.cms.util.PayrollCalculator;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
-import com.afrodebab.cms.jpa.entity.Admin;
+import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.EmployeePayment;
-import com.afrodebab.cms.jpa.repository.AdminRepository;
+import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.EmployeePaymentRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,12 +29,12 @@ public class EmployeePaymentService {
 
     private final EmployeePaymentRepository employeePaymentRepo;
     private final EmployeeRepository employeeRepo;
-    private final AdminRepository adminRepo;
+    private final ManagerRepository adminRepo;
     private final EmailNotificationService emailNotificationService;
 
     public EmployeePaymentService(EmployeePaymentRepository employeePaymentRepo,
                                   EmployeeRepository employeeRepo,
-                                  AdminRepository adminRepo,
+                                  ManagerRepository adminRepo,
                                   EmailNotificationService emailNotificationService) {
         this.employeePaymentRepo = employeePaymentRepo;
         this.employeeRepo = employeeRepo;
@@ -97,22 +99,22 @@ public class EmployeePaymentService {
     }
 
     @Transactional(readOnly = true)
-    public List<EmployeePaymentResponse> getOwnPaymentHistory(String employeeEmail) {
+    public List<EmployeePaymentSelfResponse> getOwnPaymentHistory(String employeeEmail) {
         Employee employee = employeeRepo.findByEmailIgnoreCase(employeeEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
         return employeePaymentRepo.findAllByEmployeeIdOrderByDueDateDesc(employee.getId())
                 .stream()
-                .map(this::toResponse)
+                .map(this::toSelfResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<EmployeePaymentResponse> getOwnPaidPaymentHistory(String employeeEmail) {
+    public List<EmployeePaymentSelfResponse> getOwnPaidPaymentHistory(String employeeEmail) {
         Employee employee = employeeRepo.findByEmailIgnoreCase(employeeEmail)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
         return employeePaymentRepo.findAllByEmployeeIdAndStatusOrderByDueDateDesc(employee.getId(), EmployeePayment.PaymentStatus.PAID)
                 .stream()
-                .map(this::toResponse)
+                .map(this::toSelfResponse)
                 .toList();
     }
 
@@ -160,12 +162,12 @@ public class EmployeePaymentService {
             return;
         }
 
-        List<Admin> activeAdmins = adminRepo.findAllByActiveTrue();
+        List<Manager> activeAdmins = adminRepo.findAllByActiveTrue();
         if (activeAdmins.isEmpty()) {
             return;
         }
 
-        for (Admin admin : activeAdmins) {
+        for (Manager admin : activeAdmins) {
             emailNotificationService.queueAdminPayrollReminderEmail(admin.getEmail(), admin.getName(), dueUnreminded.size());
         }
 
@@ -188,16 +190,23 @@ public class EmployeePaymentService {
                 continue;
             }
 
-            Long amountMinor = employee.getSalaryAmountMinor();
-            if (amountMinor == null) {
+            Long grossAmountMinor = employee.getSalaryAmountMinor();
+            if (grossAmountMinor == null) {
                 continue;
             }
 
+            PayrollCalculator.Breakdown breakdown = PayrollCalculator.compute(grossAmountMinor);
+
             employeePaymentRepo.insertPendingIfAbsent(
+                    employee.getOrganizationId(),
                     employee.getId(),
                     cycleStart,
                     cycleStart.plusDays(30),
-                    amountMinor,
+                    breakdown.netMinor(),
+                    breakdown.grossMinor(),
+                    breakdown.incomeTaxMinor(),
+                    breakdown.employeePensionMinor(),
+                    breakdown.employerPensionMinor(),
                     EmployeePayment.PaymentStatus.PENDING.name()
             );
         }
@@ -211,6 +220,11 @@ public class EmployeePaymentService {
                 payment.getCycleStartDate(),
                 payment.getDueDate(),
                 payment.getAmountMinor(),
+                payment.getGrossAmountMinor(),
+                payment.getIncomeTaxMinor(),
+                payment.getEmployeePensionMinor(),
+                payment.getEmployerPensionMinor(),
+                retirementSaving(payment),
                 payment.getPaidAmountMinor(),
                 payment.getStatus().name(),
                 payment.getTransactionReference(),
@@ -219,5 +233,32 @@ public class EmployeePaymentService {
                 payment.getCreatedAt(),
                 payment.getUpdatedAt()
         );
+    }
+
+    private EmployeePaymentSelfResponse toSelfResponse(EmployeePayment payment) {
+        long employeeTax = nz(payment.getIncomeTaxMinor()) + nz(payment.getEmployeePensionMinor());
+        return new EmployeePaymentSelfResponse(
+                payment.getId(),
+                payment.getCycleStartDate(),
+                payment.getDueDate(),
+                payment.getGrossAmountMinor(),
+                payment.getAmountMinor(),
+                employeeTax,
+                retirementSaving(payment),
+                payment.getPaidAmountMinor(),
+                payment.getStatus().name(),
+                payment.getTransactionReference(),
+                payment.getPaidAt(),
+                payment.getCreatedAt(),
+                payment.getUpdatedAt()
+        );
+    }
+
+    private long retirementSaving(EmployeePayment payment) {
+        return nz(payment.getEmployeePensionMinor()) + nz(payment.getEmployerPensionMinor());
+    }
+
+    private static long nz(Long value) {
+        return value != null ? value : 0L;
     }
 }

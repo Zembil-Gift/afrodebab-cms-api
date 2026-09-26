@@ -33,6 +33,18 @@ public class EventService {
         return toResponse(e);
     }
 
+    // manager: list ALL of the current tenant's events (any status). Tenant-scoped by @TenantId.
+    @Transactional(readOnly = true)
+    public Page<EventResponse> listAllAdmin(Pageable pageable) {
+        return repo.findAll(pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public EventResponse getOne(Long id) {
+        Event e = repo.findById(id).orElseThrow(() -> new NotFoundException("Event not found"));
+        return toResponse(e);
+    }
+
     // admin
     public EventResponse create(EventCreateRequest req) {
         Event e = new Event();

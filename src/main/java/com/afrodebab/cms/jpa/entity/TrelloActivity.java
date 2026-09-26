@@ -14,7 +14,7 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TrelloActivity {
+public class TrelloActivity extends com.afrodebab.cms.tenant.TenantEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

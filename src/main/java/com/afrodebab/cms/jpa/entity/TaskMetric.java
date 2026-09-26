@@ -15,7 +15,7 @@ import java.time.LocalDate;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TaskMetric {
+public class TaskMetric extends com.afrodebab.cms.tenant.TenantEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -17,7 +17,7 @@ import java.util.Map;
 
 @Tag(name = "Admin - Trello Tracker")
 @RestController
-@RequestMapping("/admin/trello")
+@RequestMapping("/manager/trello")
 public class AdminTrelloTrackerController {
 
     private final TrelloTrackerService trackerService;

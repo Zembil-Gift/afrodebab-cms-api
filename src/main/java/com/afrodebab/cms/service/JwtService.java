@@ -24,13 +24,21 @@ public class JwtService {
         this.expiresMinutes = expiresMinutes;
     }
 
-    public String generateToken(String subjectEmail, String role) {
+    /**
+     * @param orgId the caller's organization id, baked into the token so every request is
+     *              scoped to their org. Null for platform admins (global, no org).
+     */
+    public String generateToken(String subjectEmail, String role, Long orgId) {
         Instant now = Instant.now();
         Instant exp = now.plus(expiresMinutes, ChronoUnit.MINUTES);
 
+        var claims = new java.util.HashMap<String, Object>();
+        claims.put("role", role);
+        if (orgId != null) claims.put("orgId", orgId);
+
         return Jwts.builder()
                 .subject(subjectEmail)
-                .claims(Map.of("role", role))
+                .claims(claims)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
                 .signWith(key)
@@ -54,5 +62,17 @@ public class JwtService {
                 .getPayload()
                 .get("role");
         return role == null ? null : role.toString();
+    }
+
+    /** The organization id baked into the token, or null for platform-admin tokens. */
+    public Long extractOrgId(String token) {
+        Object orgId = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("orgId");
+        if (orgId == null) return null;
+        return Long.valueOf(orgId.toString());
     }
 }

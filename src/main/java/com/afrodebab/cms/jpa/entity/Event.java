@@ -14,7 +14,7 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Event {
+public class Event extends com.afrodebab.cms.tenant.TenantEntity {
     public enum Status { DRAFT, PUBLISHED }
     public enum EventType { ONLINE, IN_PERSON }
 

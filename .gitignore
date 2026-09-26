@@ -36,3 +36,7 @@ build/
 .commandcode/
 SKILLS.md
 AGENTS.md
+frontend/
+.claude/
+
+gitignore/

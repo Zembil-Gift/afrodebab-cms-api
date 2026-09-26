@@ -58,14 +58,14 @@ public class EmailPreviewController {
             );
             case "ADMIN_PAYROLL_REMINDER" -> sendGridEmailService.sendAdminPayrollReminderEmail(
                     email,
-                    DEFAULT_RECIPIENT_NAME,
+                    "Afrodebab Manager",
                     4
             );
             case "EMPLOYEE_PAYMENT_RECEIVED" -> sendGridEmailService.sendEmployeePaymentReceivedEmail(
                     email,
-                    DEFAULT_RECIPIENT_NAME,
-                    SAMPLE_AMOUNT,
-                    SAMPLE_TX_REF,
+                    "Rekik Haile",
+                    80000L,
+                    "TX-Ref-543235622353",
                     LocalDate.now()
             );
             case "HIRING_SELECTED_FOR_INTERVIEW" -> sendGridEmailService.sendCandidateSelectedForInterviewEmail(

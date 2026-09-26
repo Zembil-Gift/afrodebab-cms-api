@@ -4,7 +4,7 @@ import com.afrodebab.cms.dto.*;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.Employee;
-import com.afrodebab.cms.jpa.repository.AdminRepository;
+import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,7 +31,7 @@ public class EmployeeService {
     private static final int GENERATED_PASSWORD_LENGTH = 12;
 
     private final EmployeeRepository employeeRepo;
-    private final AdminRepository adminRepo;
+    private final ManagerRepository adminRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailNotificationService emailNotificationService;
@@ -39,7 +39,7 @@ public class EmployeeService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     public EmployeeService(EmployeeRepository employeeRepo,
-                           AdminRepository adminRepo,
+                           ManagerRepository adminRepo,
                            PasswordEncoder passwordEncoder,
                            JwtService jwtService,
                            EmailNotificationService emailNotificationService,
@@ -261,6 +261,10 @@ public class EmployeeService {
         return toResponse(employee);
     }
 
+    /**
+     * Must be invoked in root tenant scope (see EmployeeAuthController) so the employee can
+     * be resolved by their globally-unique email before any org is known.
+     */
     @Transactional
     public LoginResponse login(EmployeeLoginRequest req) {
         String normalizedEmail = normalizeEmail(req.email());
@@ -274,7 +278,8 @@ public class EmployeeService {
         employee.setLastLoginAt(Instant.now());
         employeeRepo.save(employee);
 
-        return new LoginResponse(jwtService.generateToken(employee.getEmail(), "EMPLOYEE"));
+        return new LoginResponse(
+                jwtService.generateToken(employee.getEmail(), "EMPLOYEE", employee.getOrganizationId()));
     }
 
     @Transactional

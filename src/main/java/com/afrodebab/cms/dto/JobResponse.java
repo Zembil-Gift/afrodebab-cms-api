@@ -3,6 +3,8 @@ package com.afrodebab.cms.dto;
 
 import com.afrodebab.cms.jpa.entity.Job;
 
+import java.time.Instant;
+
 public record JobResponse(
         Long id,
         String title,
@@ -11,5 +13,6 @@ public record JobResponse(
         Job.EmploymentType employmentType,
         String location,
         String description,
-        Job.Status status
+        Job.Status status,
+        Instant createdAt
 ) {}

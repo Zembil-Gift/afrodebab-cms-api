@@ -1,0 +1,96 @@
+name: deploy
+
+# Builds the image and deploys it to the VPS on every push to serdesiyon.
+on:
+  push:
+    branches: [serdesiyon]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-afrodebab-cms
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/zembil-gift/afrodebab-cms-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up SSH to the VPS
+        env:
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          [ -n "$HOST" ] && [ -n "$VPS_USER" ] && [ -n "$KEY" ] \
+            || { echo "::error::VPS_HOST, VPS_USER and VPS_SSH_KEY must all be set"; exit 1; }
+          install -m600 -D /dev/stdin ~/.ssh/id_deploy <<<"${KEY//$'\r'/}"
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+      # Checked before building: a var Spring has no default for kills the
+      # container at boot, and we would only learn that from a failed healthcheck.
+      - name: Check /opt/afrodebab-cms/.env has every required var
+        run: |
+          required=$(printf '%s\n' IMAGE_TAG PORT DB_HOST DB_PORT DB_NAME DB_USERNAME DB_PASSWORD APP_JWT_SECRET | sort)
+          present=$(ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$VPS_USER@$HOST" \
+            'sed -n "s/^\([A-Z0-9_]\+\)=..*/\1/p" /opt/afrodebab-cms/.env | sort -u')
+          missing=$(comm -23 <(echo "$required") <(echo "$present"))
+          [ -z "$missing" ] || { echo "::error::/opt/afrodebab-cms/.env is missing: $(echo $missing)"; exit 1; }
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }},${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to VPS
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # No --delete: /opt/afrodebab-cms also holds .env, which never leaves the box.
+          rsync -az -e "ssh -i ~/.ssh/id_deploy -o BatchMode=yes" \
+            deploy/docker-compose.yml "$VPS_USER@$HOST:/opt/afrodebab-cms/"
+          # --delete here only: migrations/ mirrors the repo exactly.
+          rsync -az --delete -e "ssh -i ~/.ssh/id_deploy -o BatchMode=yes" \
+            src/main/resources/db/migration/ "$VPS_USER@$HOST:/opt/afrodebab-cms/migrations/"
+
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$VPS_USER@$HOST" \
+            "IMAGE_SHA='${{ github.sha }}' GHCR_USER='${{ github.actor }}' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'EOF'
+          set -euo pipefail
+          cd /opt/afrodebab-cms
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
+          sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_SHA}|" .env
+          docker network inspect zembil >/dev/null 2>&1 || docker network create zembil
+
+          docker compose pull afrodebab-api
+
+          # Migrate before the new build starts: ddl-auto=validate would refuse
+          # to boot against an unmigrated schema. A failed migration stops the
+          # deploy with the previous container still serving.
+          docker compose up -d --wait afrodebab-db </dev/null
+          docker compose --profile migrate run --rm -T flyway </dev/null
+          # ponytail: single container, a few seconds of 502 per deploy. Copy the
+          # zembil blue/green swap if this tool ever needs zero downtime.
+          if ! docker compose up -d --wait --wait-timeout 300 </dev/null; then
+            docker compose logs --tail=150 afrodebab-api
+            exit 1
+          fi
+          docker logout ghcr.io >/dev/null
+          docker image prune -f >/dev/null
+          docker compose ps
+          EOF

@@ -25,6 +25,18 @@ public class JobService {
         return repo.findAllByStatus(Job.Status.OPEN, pageable).map(this::toResponse);
     }
 
+    // manager: list ALL of the current tenant's jobs (any status, incl. DRAFT).
+    // Tenant-scoped automatically by Hibernate's @TenantId filter.
+    @Transactional(readOnly = true)
+    public Page<JobResponse> listAll(Pageable pageable) {
+        return repo.findAll(pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public JobResponse getOne(Long id) {
+        return toResponse(getEntityOrThrow(id));
+    }
+
     @Transactional(readOnly = true)
     public JobResponse getBySlugPublic(String slug) {
         Job j = repo.findBySlug(slug).orElseThrow(() -> new NotFoundException("Job not found"));
@@ -81,7 +93,8 @@ public class JobService {
     private JobResponse toResponse(Job j) {
         return new JobResponse(
                 j.getId(), j.getTitle(), j.getSlug(), j.getDepartment(),
-                j.getEmploymentType(), j.getLocation(), j.getDescription(), j.getStatus()
+                j.getEmploymentType(), j.getLocation(), j.getDescription(), j.getStatus(),
+                j.getCreatedAt()
         );
     }
 }

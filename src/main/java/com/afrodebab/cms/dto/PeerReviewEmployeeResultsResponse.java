@@ -10,6 +10,7 @@ public record PeerReviewEmployeeResultsResponse(
         String role,
         String employmentType,
         BigDecimal leadershipScore,
-        List<PeerReviewPrincipleAverageResponse> principleAverages
+        List<PeerReviewPrincipleAverageResponse> principleAverages,
+        List<String> comments
 ) {
 }

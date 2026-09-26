@@ -2,17 +2,24 @@ package com.afrodebab.cms.service;
 
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.GitHubActivity;
+import com.afrodebab.cms.jpa.entity.GitHubOrgRef;
+import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import com.afrodebab.cms.jpa.repository.GitHubActivityRepository;
+import com.afrodebab.cms.jpa.repository.ManagerRepository;
+import com.afrodebab.cms.security.TokenCipher;
+import com.afrodebab.cms.service.ManagerGitHubConnectionService.ManagerRef;
+import com.afrodebab.cms.tenant.TenantContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -35,31 +42,42 @@ public class GitHubTrackerService {
 
     private final GitHubActivityRepository activityRepo;
     private final EmployeeRepository employeeRepo;
+    private final ManagerRepository managerRepo;
+    private final ManagerGitHubConnectionService connectionService;
+    private final TokenCipher cipher;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
-
-    @Value("${GITHUB_KEY:}")
-    private String githubKey;
-
-    @Value("${GITHUB_ORG_NAME:}")
-    private String githubOrgName;
+    private final TransactionTemplate txTemplate;
 
     @Autowired
     public GitHubTrackerService(GitHubActivityRepository activityRepo,
                                 EmployeeRepository employeeRepo,
-                                ObjectMapper objectMapper) {
-        this(activityRepo, employeeRepo, objectMapper, HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .build());
+                                ManagerRepository managerRepo,
+                                ManagerGitHubConnectionService connectionService,
+                                TokenCipher cipher,
+                                ObjectMapper objectMapper,
+                                PlatformTransactionManager txManager) {
+        this(activityRepo, employeeRepo, managerRepo, connectionService, cipher, objectMapper,
+                txManager, HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build());
     }
 
     public GitHubTrackerService(GitHubActivityRepository activityRepo,
                                 EmployeeRepository employeeRepo,
+                                ManagerRepository managerRepo,
+                                ManagerGitHubConnectionService connectionService,
+                                TokenCipher cipher,
                                 ObjectMapper objectMapper,
+                                PlatformTransactionManager txManager,
                                 HttpClient httpClient) {
         this.activityRepo = activityRepo;
         this.employeeRepo = employeeRepo;
+        this.managerRepo = managerRepo;
+        this.connectionService = connectionService;
+        this.cipher = cipher;
         this.objectMapper = objectMapper;
+        this.txTemplate = new TransactionTemplate(txManager);
         this.httpClient = httpClient;
     }
 
@@ -73,14 +91,47 @@ public class GitHubTrackerService {
         }
     }
 
-    @Transactional
+    /**
+     * Orchestrates the sync across every organization: finds all managers who have connected
+     * GitHub (root scope), then for each runs the sync inside a fresh transaction scoped to
+     * that manager's org, so activity rows are attributed to the right tenant. Not itself
+     * transactional — each org gets its own tenant-scoped session via {@link TransactionTemplate}.
+     */
     public int syncActivities() {
-        if (githubKey == null || githubKey.isBlank() || githubOrgName == null || githubOrgName.isBlank()) {
-            log.warn("GitHub tracker skipped: GITHUB_KEY or GITHUB_ORG_NAME environment variables are not set");
+        if (!cipher.isConfigured()) {
+            log.warn("GitHub tracker skipped: app.security.token-encryption-key is not set");
             return 0;
         }
 
-        // Fetch active employees with configured github usernames
+        List<ManagerRef> managers = TenantContext.callAsRoot(connectionService::findConnectedManagers);
+        if (managers.isEmpty()) {
+            log.info("No managers have connected GitHub. Skipping sync.");
+            return 0;
+        }
+
+        int totalSaved = 0;
+        for (ManagerRef ref : managers) {
+            try {
+                totalSaved += TenantContext.callAs(ref.organizationId(),
+                        () -> txTemplate.execute(status -> syncManager(ref.managerId())));
+            } catch (Exception e) {
+                log.error("Failed to sync GitHub for manager {} (org {})",
+                        ref.managerId(), ref.organizationId(), e);
+            }
+        }
+
+        log.info("Finished GitHub activity sync. Total activities saved: {}", totalSaved);
+        return totalSaved;
+    }
+
+    /** Runs inside a transaction already scoped to the manager's org (tenant filtering applies). */
+    private int syncManager(Long managerId) {
+        Manager manager = managerRepo.findById(managerId).orElse(null);
+        if (manager == null || manager.getGithubToken() == null) return 0;
+
+        Set<GitHubOrgRef> orgs = manager.getGithubOrgs();
+        if (orgs.isEmpty()) return 0;
+
         List<Employee> employees = employeeRepo.findAllByActiveTrueOrderByNameAsc();
         Map<String, Employee> usernameToEmployee = new HashMap<>();
         for (Employee emp : employees) {
@@ -88,14 +139,24 @@ public class GitHubTrackerService {
                 usernameToEmployee.put(emp.getGithubUsername().toLowerCase(Locale.ROOT).trim(), emp);
             }
         }
-
         if (usernameToEmployee.isEmpty()) {
-            log.info("No active employees with github_username configured. Skipping sync.");
             return 0;
         }
 
-        log.info("Syncing GitHub activities for org: {}, tracking {} mapped employees", githubOrgName, usernameToEmployee.size());
-        
+        String token = cipher.decrypt(manager.getGithubToken());
+        int saved = 0;
+        for (GitHubOrgRef org : orgs) {
+            saved += syncOrg(org.getOrgLogin(), token, usernameToEmployee);
+        }
+        return saved;
+    }
+
+    // ponytail: within an org, existsByActivityId dedupes across managers who track the same
+    // GitHub org. Two *different* tenants tracking the same GitHub org would collide on the
+    // global unique activity_id — rare; make activity_id unique per-org if that ever happens.
+    private int syncOrg(String orgLogin, String token, Map<String, Employee> usernameToEmployee) {
+        if (orgLogin == null || orgLogin.isBlank()) return 0;
+
         int totalSaved = 0;
         int page = 1;
         boolean caughtUp = false;
@@ -104,12 +165,12 @@ public class GitHubTrackerService {
         // GitHub API allows max 10 pages for events
         while (page <= 10 && !caughtUp) {
             try {
-                List<JsonNode> events = fetchEventsPage(page);
+                List<JsonNode> events = fetchEventsPage(orgLogin, page, token);
                 if (events == null || events.isEmpty()) {
                     break;
                 }
 
-                log.debug("Fetched {} events from page {} of org {}", events.size(), page, githubOrgName);
+                log.debug("Fetched {} events from page {} of org {}", events.size(), page, orgLogin);
 
                 List<GitHubActivity> activitiesToSave = new ArrayList<>();
 
@@ -162,33 +223,25 @@ public class GitHubTrackerService {
                 if (!activitiesToSave.isEmpty()) {
                     activityRepo.saveAll(activitiesToSave);
                     totalSaved += activitiesToSave.size();
-                    log.info("Saved {} new GitHub activities from page {}", activitiesToSave.size(), page);
-                }
-
-                // If no new activities were found on this page and we are not in initial sync, 
-                // we might have already synced everything. We can safely stop to avoid rate limits.
-                if (activitiesToSave.isEmpty() && page > 1) {
-                    // Check if page has events. If we mapped no employees, activitiesToSave is empty.
-                    // But if we hit events that are already in DB, caughtUp is set to true.
+                    log.info("Saved {} new GitHub activities from org {} page {}",
+                            activitiesToSave.size(), orgLogin, page);
                 }
 
                 page++;
             } catch (Exception e) {
-                log.error("Failed to sync GitHub events on page " + page, e);
+                log.error("Failed to sync GitHub events for org " + orgLogin + " on page " + page, e);
                 break;
             }
         }
-
-        log.info("Finished GitHub activity sync. Total activities saved: {}", totalSaved);
         return totalSaved;
     }
 
-    private List<JsonNode> fetchEventsPage(int page) throws Exception {
-        String url = String.format("https://api.github.com/orgs/%s/events?page=%d&per_page=30", githubOrgName, page);
-        
+    private List<JsonNode> fetchEventsPage(String orgLogin, int page, String token) throws Exception {
+        String url = String.format("https://api.github.com/orgs/%s/events?page=%d&per_page=30", orgLogin, page);
+
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("Authorization", "Bearer " + githubKey)
+                .header("Authorization", "Bearer " + token)
                 .header("Accept", "application/vnd.github+json")
                 .header("User-Agent", "AfroDebab-CMS-API")
                 .GET()

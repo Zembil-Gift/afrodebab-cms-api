@@ -140,6 +140,60 @@ public class SendGridEmailService {
         sendEmail(recipientEmail, "Interview result - AfroDebab", plainBody, htmlBody, "Failed to send post-interview rejection email");
     }
 
+    /** Notifies a platform admin that a prospect submitted a "Start free" signup request. */
+    public void sendPlatformSignupRequestEmail(String recipientEmail,
+                                               String recipientName,
+                                               String companyName,
+                                               String contactName,
+                                               String contactEmail,
+                                               String message) {
+        String plainBody = "Hello " + recipientName + ",\n\n"
+                + "A new organization signup request has arrived.\n"
+                + "Company: " + companyName + "\n"
+                + "Contact: " + contactName + "\n"
+                + "Email: " + contactEmail + "\n"
+                + (message != null && !message.isBlank() ? "Message: " + message + "\n" : "")
+                + "\nReview it in the platform admin dashboard and click Register to provision the organization.";
+        String htmlBody = buildEmailTemplate(
+                "New signup request",
+                "Hello " + escapeHtml(recipientName) + ",",
+                "<p style=\"margin:0 0 14px;\">A new organization signup request has arrived.</p>"
+                        + "<p style=\"margin:0 0 6px;\"><strong>Company:</strong> " + escapeHtml(companyName) + "</p>"
+                        + "<p style=\"margin:0 0 6px;\"><strong>Contact:</strong> " + escapeHtml(contactName) + "</p>"
+                        + "<p style=\"margin:0 0 6px;\"><strong>Email:</strong> " + escapeHtml(contactEmail) + "</p>"
+                        + (message != null && !message.isBlank()
+                                ? "<p style=\"margin:0 0 14px;\"><strong>Message:</strong> " + escapeHtml(message) + "</p>"
+                                : "")
+                        + "<p style=\"margin:14px 0 0;\">Review it in the platform admin dashboard and click <strong>Register</strong> to provision the organization.</p>"
+        );
+
+        sendEmail(recipientEmail, "New signup request - " + companyName, plainBody, htmlBody, "Failed to send signup request notification email");
+    }
+
+    /** Sends a newly provisioned manager their login credentials for their new workspace. */
+    public void sendManagerWelcomeEmail(String recipientEmail,
+                                        String recipientName,
+                                        String organizationName,
+                                        String generatedPassword) {
+        String plainBody = "Hello " + recipientName + ",\n\n"
+                + "Your workspace \"" + organizationName + "\" is ready.\n"
+                + "Sign in with the following credentials:\n"
+                + "Email: " + recipientEmail + "\n"
+                + "Temporary password: " + generatedPassword + "\n\n"
+                + "Please log in and change your password immediately to keep your account secure.";
+        String htmlBody = buildEmailTemplate(
+                "Your workspace is ready",
+                "Hello " + escapeHtml(recipientName) + ",",
+                "<p style=\"margin:0 0 14px;\">Your workspace <strong>" + escapeHtml(organizationName)
+                        + "</strong> has been created and you are its first manager.</p>"
+                        + "<p style=\"margin:0 0 6px;\"><strong>Email:</strong> " + escapeHtml(recipientEmail) + "</p>"
+                        + "<p style=\"margin:0 0 14px;\"><strong>Temporary password:</strong> " + escapeHtml(generatedPassword) + "</p>"
+                        + "<p style=\"margin:0;\">Please log in and change your password immediately to keep your account secure.</p>"
+        );
+
+        sendEmail(recipientEmail, "Your " + organizationName + " workspace is ready", plainBody, htmlBody, "Failed to send manager welcome email");
+    }
+
     private void sendEmail(String recipientEmail,
                            String subject,
                            String plainBody,

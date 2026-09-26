@@ -3,12 +3,12 @@ package com.afrodebab.cms.service;
 import com.afrodebab.cms.dto.AdminPeerReviewResponse;
 import com.afrodebab.cms.dto.AdminPeerReviewUpsertRequest;
 import com.afrodebab.cms.exception.NotFoundException;
-import com.afrodebab.cms.jpa.entity.Admin;
+import com.afrodebab.cms.jpa.entity.Manager;
 import com.afrodebab.cms.jpa.entity.AdminPeerReview;
 import com.afrodebab.cms.jpa.entity.Employee;
 import com.afrodebab.cms.jpa.entity.PeerReviewPeriod;
 import com.afrodebab.cms.jpa.repository.AdminPeerReviewRepository;
-import com.afrodebab.cms.jpa.repository.AdminRepository;
+import com.afrodebab.cms.jpa.repository.ManagerRepository;
 import com.afrodebab.cms.jpa.repository.EmployeeRepository;
 import com.afrodebab.cms.jpa.repository.PeerReviewPeriodRepository;
 import org.springframework.stereotype.Service;
@@ -19,12 +19,12 @@ public class AdminPeerReviewService {
     private final AdminPeerReviewRepository adminPeerReviewRepository;
     private final PeerReviewPeriodRepository peerReviewPeriodRepository;
     private final EmployeeRepository employeeRepository;
-    private final AdminRepository adminRepository;
+    private final ManagerRepository adminRepository;
 
     public AdminPeerReviewService(AdminPeerReviewRepository adminPeerReviewRepository,
                                  PeerReviewPeriodRepository peerReviewPeriodRepository,
                                  EmployeeRepository employeeRepository,
-                                 AdminRepository adminRepository) {
+                                 ManagerRepository adminRepository) {
         this.adminPeerReviewRepository = adminPeerReviewRepository;
         this.peerReviewPeriodRepository = peerReviewPeriodRepository;
         this.employeeRepository = employeeRepository;
@@ -39,8 +39,8 @@ public class AdminPeerReviewService {
         PeerReviewPeriod period = peerReviewPeriodRepository.findById(periodId)
                 .orElseThrow(() -> new NotFoundException("Peer review period not found"));
 
-        Admin reviewer = adminRepository.findByEmailIgnoreCase(adminEmail)
-                .orElseThrow(() -> new NotFoundException("Admin not found"));
+        Manager reviewer = adminRepository.findByEmailIgnoreCase(adminEmail)
+                .orElseThrow(() -> new NotFoundException("Manager not found"));
 
         Employee reviewee = employeeRepository.findById(revieweeId)
                 .orElseThrow(() -> new NotFoundException("Employee not found"));
