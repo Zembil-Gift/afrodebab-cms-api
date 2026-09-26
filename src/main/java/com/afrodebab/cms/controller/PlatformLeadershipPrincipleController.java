@@ -2,7 +2,7 @@ package com.afrodebab.cms.controller;
 
 import com.afrodebab.cms.dto.LeadershipPrincipleRequest;
 import com.afrodebab.cms.dto.LeadershipPrincipleResponse;
-import com.afrodebab.cms.service.LeadershipPrincipleService;
+import com.afrodebab.cms.service.DefaultLeadershipPrincipleService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,14 +16,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** The default principle set organizations copy from; each org then manages its own copy. */
 @Tag(name = "Platform Admin - Leadership Principles")
 @RestController
 @RequestMapping("/admin/principles")
 public class PlatformLeadershipPrincipleController {
 
-    private final LeadershipPrincipleService service;
+    private final DefaultLeadershipPrincipleService service;
 
-    public PlatformLeadershipPrincipleController(LeadershipPrincipleService service) {
+    public PlatformLeadershipPrincipleController(DefaultLeadershipPrincipleService service) {
         this.service = service;
     }
 

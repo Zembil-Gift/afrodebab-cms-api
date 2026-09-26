@@ -49,11 +49,7 @@ public interface PeerReviewRepository extends JpaRepository<PeerReview, Long> {
         return revieweeId == null ? findSubmitted(from, to) : findSubmittedForReviewee(revieweeId, from, to);
     }
 
-    // Native so it bypasses @TenantId filtering: principles are shared, so a rating from any
-    // organization counts when the platform admin deletes one.
-    @Query(value = "SELECT EXISTS (SELECT 1 FROM peer_reviews WHERE principle_id = :principleId)",
-            nativeQuery = true)
-    boolean existsByPrincipleIdInAnyOrganization(@Param("principleId") Long principleId);
+    boolean existsByPrincipleId(Long principleId);
 
     List<PeerReview> findAllByRevieweeId(Long revieweeId);
 }

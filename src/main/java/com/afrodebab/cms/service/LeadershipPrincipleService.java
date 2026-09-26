@@ -5,6 +5,7 @@ import com.afrodebab.cms.dto.LeadershipPrincipleResponse;
 import com.afrodebab.cms.exception.BadRequestException;
 import com.afrodebab.cms.exception.NotFoundException;
 import com.afrodebab.cms.jpa.entity.LeadershipPrinciple;
+import com.afrodebab.cms.jpa.repository.DefaultLeadershipPrincipleRepository;
 import com.afrodebab.cms.jpa.repository.LeadershipPrincipleRepository;
 import com.afrodebab.cms.jpa.repository.PeerReviewRepository;
 import org.springframework.stereotype.Service;
@@ -12,25 +13,43 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * Platform-wide principles every organization's peer reviews are rated against. Managers and
- * employees only read them; the platform admin owns create/update/delete.
- */
+/** Per-organization CRUD for the principles peer reviews are rated against. */
 @Service
 public class LeadershipPrincipleService {
 
     private final LeadershipPrincipleRepository principleRepo;
     private final PeerReviewRepository peerReviewRepo;
+    private final DefaultLeadershipPrincipleRepository defaultRepo;
 
     public LeadershipPrincipleService(LeadershipPrincipleRepository principleRepo,
-                                      PeerReviewRepository peerReviewRepo) {
+                                      PeerReviewRepository peerReviewRepo,
+                                      DefaultLeadershipPrincipleRepository defaultRepo) {
         this.principleRepo = principleRepo;
         this.peerReviewRepo = peerReviewRepo;
+        this.defaultRepo = defaultRepo;
     }
 
     @Transactional(readOnly = true)
     public List<LeadershipPrincipleResponse> listAll() {
         return principleRepo.findAllByOrderByIdAsc().stream().map(this::toResponse).toList();
+    }
+
+    /** The platform admin's active default set, offered to the org as a starting point. */
+    @Transactional(readOnly = true)
+    public List<LeadershipPrincipleResponse> listDefaults() {
+        return defaultRepo.findAllByActiveTrueOrderByIdAsc().stream()
+                .map(d -> new LeadershipPrincipleResponse(d.getId(), d.getName(), d.getDescription(), true))
+                .toList();
+    }
+
+    /** Copies every active default the org does not have yet (matched by name). */
+    @Transactional
+    public List<LeadershipPrincipleResponse> addDefaults() {
+        defaultRepo.findAllByActiveTrueOrderByIdAsc().stream()
+                .filter(d -> !principleRepo.existsByNameIgnoreCase(d.getName()))
+                .map(d -> LeadershipPrinciple.builder().name(d.getName()).description(d.getDescription()).active(true).build())
+                .forEach(principleRepo::save);
+        return listAll();
     }
 
     @Transactional
@@ -67,7 +86,7 @@ public class LeadershipPrincipleService {
     @Transactional
     public void delete(Long id) {
         LeadershipPrinciple principle = getEntityOrThrow(id);
-        if (peerReviewRepo.existsByPrincipleIdInAnyOrganization(id)) {
+        if (peerReviewRepo.existsByPrincipleId(id)) {
             principle.setActive(false);
             principleRepo.save(principle);
             return;

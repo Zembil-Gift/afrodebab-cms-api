@@ -8,24 +8,25 @@ import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 
+/** Platform-wide template managed by the platform admin; organizations copy it into their own principles. */
 @Data
 @Entity
-@Table(name = "leadership_principles")
+@Table(name = "default_leadership_principles")
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LeadershipPrinciple extends com.afrodebab.cms.tenant.TenantEntity {
+public class DefaultLeadershipPrinciple {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name")
+    @Column(name = "name", nullable = false)
     private String name;
 
     @Column(name = "description")
     private String description;
 
-    @Column(name = "is_active")
+    @Column(name = "is_active", nullable = false)
     private Boolean active = true;
 
     @Column(name = "created_at", updatable = false)
