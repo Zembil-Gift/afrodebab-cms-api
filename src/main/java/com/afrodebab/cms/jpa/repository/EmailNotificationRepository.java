@@ -14,4 +14,10 @@ public interface EmailNotificationRepository extends JpaRepository<EmailNotifica
             Collection<EmailNotification.DeliveryStatus> statuses,
             int attemptCount
     );
+
+    List<EmailNotification> findAllByStatusAndAttemptCountAndTypeInOrderByCreatedAtAsc(
+            EmailNotification.DeliveryStatus status,
+            int attemptCount,
+            Collection<EmailNotification.NotificationType> types
+    );
 }

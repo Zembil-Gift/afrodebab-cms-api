@@ -92,6 +92,17 @@ public class Manager extends TenantEntity {
     @Builder.Default
     private Set<GitHubOrgSubOrg> githubOrgSubOrgs = new HashSet<>();
 
+    /** Google OAuth refresh token (Calendar/Sheets), encrypted at rest. Null until they connect. */
+    @Column(name = "google_refresh_token", columnDefinition = "TEXT")
+    private String googleRefreshToken;
+
+    @Column(name = "google_email")
+    private String googleEmail;
+
+    /** Space-separated scopes Google granted, so features can check what they may use. */
+    @Column(name = "google_scopes", columnDefinition = "TEXT")
+    private String googleScopes;
+
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 

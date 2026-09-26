@@ -36,7 +36,11 @@ public class EmailNotification extends com.afrodebab.cms.tenant.TenantEntity {
         MANAGER_WELCOME,
         PLATFORM_SIGNUP_REQUEST,
         VERIFICATION_CODE,
-        EMPLOYEE_EMAIL_CHANGED
+        EMPLOYEE_EMAIL_CHANGED,
+        BROADCAST,
+        INTERVIEW_INVITATION,
+        INTERVIEW_PANEL_INVITATION,
+        INTERVIEW_CANCELLED
     }
 
     @Id

@@ -44,6 +44,8 @@ public class EmailTemplateService {
     private static final String DEFAULT_ORG_NAME = "AfroDebab";
     private static final String PASSWORD = "password";
     private static final String POWERED_BY = "Mahberix";
+    /** Payload key holding iCalendar text; sent as an attachment, never rendered. */
+    public static final String CALENDAR_INVITE = "calendarInvite";
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*(\\w+)\\s*}}");
 
     private final EmailTemplateRepository templateRepo;
@@ -71,7 +73,7 @@ public class EmailTemplateService {
     /** Renders with the org's saved overrides and branding (orgId null = platform defaults) and sends. */
     public void send(NotificationType type, String recipientEmail, Map<String, String> vars, Long orgId) {
         Rendered rendered = render(type, vars, orgId, savedOverride(type, orgId));
-        sendGridEmailService.send(recipientEmail, rendered.subject(), rendered.text(), rendered.html());
+        sendGridEmailService.send(recipientEmail, rendered.subject(), rendered.text(), rendered.html(), vars.get(CALENDAR_INVITE));
     }
 
     public String subject(NotificationType type, Map<String, String> vars, Long orgId) {
@@ -519,5 +521,50 @@ public class EmailTemplateService {
                 false, List.of(new Row("Verification code", "code")),
                 sample("email", "rekik@acme.example", "code", "482913", "minutes", "10",
                         "action", "confirm your email and finish your workspace request")));
+
+        List<Row> interviewRows = List.of(new Row("Role", "jobTitle"), new Row("When", "when"),
+                new Row("Format", "format"), new Row("Location", "location"), new Row("Meeting link", "meetingUrl"));
+        DEFINITIONS.put(NotificationType.INTERVIEW_INVITATION, new Definition("Candidate", true,
+                "Interview invitation - {{jobTitle}} at {{organization}}",
+                "You're invited to an interview",
+                "Thank you for applying for {{jobTitle}}. We would like to meet you - the details are below.\n\n"
+                        + "The attached invitation adds the interview to your calendar. If the time does not work for you, please reply to let us know.",
+                false, interviewRows,
+                sample("name", "Rekik Haile", "email", "rekik@example.com", "jobTitle", "Frontend Developer",
+                        "when", "Wed, 1 Oct 2026, 10:00 - 11:00 (Africa/Addis_Ababa)", "format", "Online",
+                        "location", "", "meetingUrl", "https://meet.google.com/abc-defg-hij")));
+
+        DEFINITIONS.put(NotificationType.INTERVIEW_PANEL_INVITATION, new Definition("Interviewer", true,
+                "Interview: {{candidateName}} for {{jobTitle}}",
+                "You're on an interview panel",
+                "You have been added as an interviewer for {{candidateName}}, who applied for {{jobTitle}}.\n\n"
+                        + "The attached invitation adds the interview to your calendar.",
+                false, List.of(new Row("Candidate", "candidateName"), new Row("Role", "jobTitle"), new Row("When", "when"),
+                        new Row("Format", "format"), new Row("Location", "location"), new Row("Meeting link", "meetingUrl"),
+                        new Row("Notes", "notes")),
+                sample("name", "Abel Tesfaye", "email", "interviewer@example.com", "candidateName", "Rekik Haile",
+                        "jobTitle", "Frontend Developer", "when", "Wed, 1 Oct 2026, 10:00 - 11:00 (Africa/Addis_Ababa)",
+                        "format", "Online", "location", "", "meetingUrl", "https://meet.google.com/abc-defg-hij",
+                        "notes", "Focus on React and system design.")));
+
+        // Goes to the candidate and every interviewer.
+        DEFINITIONS.put(NotificationType.INTERVIEW_CANCELLED, new Definition("Candidate", true,
+                "Interview cancelled - {{jobTitle}}",
+                "Interview cancelled",
+                "The interview for {{jobTitle}} scheduled for {{when}} has been cancelled.\n\n"
+                        + "The attached update removes it from your calendar. We will be in touch if it is rescheduled.",
+                false, List.of(new Row("Role", "jobTitle"), new Row("Was scheduled for", "when")),
+                sample("name", "Rekik Haile", "email", "rekik@example.com", "jobTitle", "Frontend Developer",
+                        "when", "Wed, 1 Oct 2026, 10:00 - 11:00 (Africa/Addis_Ababa)")));
+
+        // The manager writes the whole message each time, so there is nothing to customize.
+        DEFINITIONS.put(NotificationType.BROADCAST, new Definition("Employee", false,
+                "{{subject}}",
+                "{{subject}}",
+                "{{body}}",
+                false, List.of(new Row("Sent by", "sender")),
+                sample("name", "Rekik Haile", "email", "rekik@example.com", "subject", "Office closed on Friday",
+                        "body", "Hi team,\n\nThe office will be **closed on Friday** for maintenance.\n\n- Work from home\n- Meetings move online",
+                        "sender", "Abel Tesfaye")));
     }
 }

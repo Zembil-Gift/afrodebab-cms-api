@@ -5,6 +5,7 @@ import com.sendgrid.Request;
 import com.sendgrid.Response;
 import com.sendgrid.SendGrid;
 import com.sendgrid.helpers.mail.Mail;
+import com.sendgrid.helpers.mail.objects.Attachments;
 import com.sendgrid.helpers.mail.objects.Content;
 import com.sendgrid.helpers.mail.objects.Email;
 import com.sendgrid.helpers.mail.objects.Personalization;
@@ -12,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 /** SendGrid transport only. Email content is rendered by {@link EmailTemplateService}. */
 @Service
@@ -29,6 +32,11 @@ public class SendGridEmailService {
     }
 
     public void send(String recipientEmail, String subject, String plainBody, String htmlBody) {
+        send(recipientEmail, subject, plainBody, htmlBody, null);
+    }
+
+    /** {@code calendarInvite} (iCalendar text) is attached as invite.ics when present. */
+    public void send(String recipientEmail, String subject, String plainBody, String htmlBody, String calendarInvite) {
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("SENDGRID_API_KEY is not configured");
         if (fromEmail == null || fromEmail.isBlank()) throw new IllegalStateException("SENDGRID_FROM_EMAIL is not configured");
 
@@ -41,6 +49,14 @@ public class SendGridEmailService {
         mail.addPersonalization(personalization);
         mail.addContent(new Content("text/plain", plainBody));
         mail.addContent(new Content("text/html", htmlBody));
+        if (calendarInvite != null) {
+            Attachments invite = new Attachments();
+            invite.setContent(Base64.getEncoder().encodeToString(calendarInvite.getBytes(StandardCharsets.UTF_8)));
+            invite.setType("text/calendar");
+            invite.setFilename("invite.ics");
+            invite.setDisposition("attachment");
+            mail.addAttachments(invite);
+        }
 
         SendGrid sg = new SendGrid(apiKey);
         try {

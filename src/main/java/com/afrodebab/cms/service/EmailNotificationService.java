@@ -18,13 +18,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class EmailNotificationService {
     private static final int MAX_ATTEMPTS = 3;
+    // Time-sensitive emails go out on the next minute tick instead of waiting for the org's daily dispatch.
+    private static final Set<NotificationType> IMMEDIATE_TYPES = EnumSet.of(NotificationType.BROADCAST,
+            NotificationType.INTERVIEW_INVITATION, NotificationType.INTERVIEW_PANEL_INVITATION, NotificationType.INTERVIEW_CANCELLED);
 
     private final EmailNotificationRepository emailNotificationRepo;
     private final EmailTemplateService emailTemplateService;
@@ -130,6 +135,38 @@ public class EmailNotificationService {
         queue(NotificationType.HIRING_REJECTED_POST_INTERVIEW, recipientEmail, vars("name", recipientName, "jobTitle", jobTitle));
     }
 
+    @Transactional
+    public void queueBroadcastEmail(String recipientEmail, String recipientName, String subject, String body, String sender) {
+        queue(NotificationType.BROADCAST, recipientEmail,
+                vars("name", recipientName, "subject", subject, "body", body, "sender", sender));
+    }
+
+    @Transactional
+    public void queueInterviewInvitationEmail(String recipientEmail, String recipientName, String jobTitle, String when,
+                                              String format, String location, String meetingUrl, String calendarInvite) {
+        queue(NotificationType.INTERVIEW_INVITATION, recipientEmail,
+                vars("name", recipientName, "jobTitle", jobTitle, "when", when, "format", format, "location", location,
+                        "meetingUrl", meetingUrl, EmailTemplateService.CALENDAR_INVITE, calendarInvite));
+    }
+
+    @Transactional
+    public void queueInterviewPanelInvitationEmail(String recipientEmail, String recipientName, String candidateName,
+                                                   String jobTitle, String when, String format, String location,
+                                                   String meetingUrl, String notes, String calendarInvite) {
+        queue(NotificationType.INTERVIEW_PANEL_INVITATION, recipientEmail,
+                vars("name", recipientName, "candidateName", candidateName, "jobTitle", jobTitle, "when", when,
+                        "format", format, "location", location, "meetingUrl", meetingUrl, "notes", notes,
+                        EmailTemplateService.CALENDAR_INVITE, calendarInvite));
+    }
+
+    @Transactional
+    public void queueInterviewCancelledEmail(String recipientEmail, String recipientName, String jobTitle, String when,
+                                             String calendarInvite) {
+        queue(NotificationType.INTERVIEW_CANCELLED, recipientEmail,
+                vars("name", recipientName, "jobTitle", jobTitle, "when", when,
+                        EmailTemplateService.CALENDAR_INVITE, calendarInvite));
+    }
+
     @Transactional(readOnly = true)
     public Page<EmailNotificationResponse> listFailed(Pageable pageable) {
         return emailNotificationRepo.findAllByStatus(EmailNotification.DeliveryStatus.FAILED, pageable)
@@ -160,6 +197,15 @@ public class EmailNotificationService {
                         List.of(EmailNotification.DeliveryStatus.PENDING, EmailNotification.DeliveryStatus.FAILED),
                         MAX_ATTEMPTS
                 )
+                .forEach(this::sendNotification);
+    }
+
+    /** First attempt for the current org's time-sensitive emails; failures wait for the daily dispatch retry. */
+    @Transactional
+    public void dispatchImmediate() {
+        emailNotificationRepo
+                .findAllByStatusAndAttemptCountAndTypeInOrderByCreatedAtAsc(
+                        EmailNotification.DeliveryStatus.PENDING, 0, IMMEDIATE_TYPES)
                 .forEach(this::sendNotification);
     }
 

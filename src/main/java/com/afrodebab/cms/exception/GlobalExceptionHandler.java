@@ -11,6 +11,7 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.validation.FieldError;
 
 import java.time.Instant;
@@ -52,6 +53,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
         return build(HttpStatus.FORBIDDEN, "Forbidden", req.getRequestURI());
+    }
+
+    // Services throw these with a deliberate status (e.g. 503 "integration not configured"); keep it.
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiError> handleResponseStatus(ResponseStatusException ex, HttpServletRequest req) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        boolean passThrough = status != null && (status.is4xxClientError()
+                || status == HttpStatus.BAD_GATEWAY || status == HttpStatus.SERVICE_UNAVAILABLE);
+        if (!passThrough) return handleGeneric((RuntimeException) ex, req);
+        return build(status, safeMessage(ex.getReason(), status.getReasonPhrase()), req.getRequestURI());
     }
 
     @ExceptionHandler(Exception.class)

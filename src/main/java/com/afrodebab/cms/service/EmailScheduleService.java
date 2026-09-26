@@ -79,6 +79,11 @@ public class EmailScheduleService {
     // The last-run marks are written even when a job throws, so a persistent failure is retried at
     // the next scheduled time instead of every minute; failed emails are retried by the next dispatch.
     private void runDueJobs(Organization org, Instant now) {
+        TenantContext.callAs(org.getId(), () -> {
+            emailNotificationService.dispatchImmediate();
+            return null;
+        });
+
         LocalTime time = org.getEmailDispatchTime();
         ZoneId zone = ZoneId.of(org.getEmailTimezone());
 
