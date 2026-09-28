@@ -116,9 +116,8 @@ public class InterviewService {
     @Transactional
     public InterviewResponse schedule(Long applicationId, InterviewRequest req) {
         JobApplication application = jobApplicationService.getEntityOrThrow(applicationId);
-        if (application.getStatus() == JobApplication.ApplicationStatus.REJECTED
-                || application.getStatus() == JobApplication.ApplicationStatus.HIRED) {
-            throw new BadRequestException("Interviews can't be scheduled for rejected or hired candidates");
+        if (application.getStatus() != JobApplication.ApplicationStatus.SELECTED_FOR_INTERVIEW) {
+            throw new BadRequestException("Interviews can only be scheduled for candidates selected for interview");
         }
         Manager organizer = currentManager();
 
@@ -128,10 +127,6 @@ public class InterviewService {
         interview.setStatus(Interview.Status.SCHEDULED);
         apply(interview, req);
         interview = interviewRepo.save(interview);
-
-        if (application.getStatus() != JobApplication.ApplicationStatus.SELECTED_FOR_INTERVIEW) {
-            application.setStatus(JobApplication.ApplicationStatus.SELECTED_FOR_INTERVIEW);
-        }
 
         boolean onGoogle = createGoogleEvent(interview, organizer);
         if (!onGoogle) emailInvitations(interview, organizer, interview.getParticipants());
