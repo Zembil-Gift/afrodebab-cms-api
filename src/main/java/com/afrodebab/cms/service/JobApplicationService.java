@@ -138,7 +138,10 @@ public class JobApplicationService {
 
     @Transactional
     public JobApplicationAdminResponse hireCandidate(Long jobId, HireCandidateRequest req) {
-        jobService.getEntityOrThrow(jobId);
+        Job job = jobService.getEntityOrThrow(jobId);
+        if (job.getStatus() != Job.Status.OPEN) {
+            throw new BadRequestException("Candidates can only be hired while the job is open");
+        }
 
         JobApplication selectedCandidate = repo.findByIdAndJobId(req.applicationId(), jobId)
                 .orElseThrow(() -> new NotFoundException("Job application not found"));
