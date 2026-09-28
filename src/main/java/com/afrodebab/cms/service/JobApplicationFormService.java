@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -41,7 +42,7 @@ public class JobApplicationFormService {
     static final long MAX_FILE_BYTES = 10L * 1024 * 1024;
 
     private static final Pattern FIELD_ID = Pattern.compile("^[a-z0-9-]{1,40}$");
-    private static final Set<FileType> RESUME_TYPES = EnumSet.of(FileType.PDF, FileType.DOC, FileType.DOCX);
+    private static final Set<FileType> ALLOWED_FILE_TYPES = EnumSet.of(FileType.PDF, FileType.DOCX);
 
     private final CloudflareR2Service r2Service;
 
@@ -87,10 +88,14 @@ public class JobApplicationFormService {
         Integer maxLength = null;
         switch (f.type()) {
             case FILE -> {
-                if (f.fileTypes() == null || f.fileTypes().isEmpty() || f.fileTypes().contains(null)) {
+                if (f.fileTypes() == null || f.fileTypes().contains(null)) {
                     throw new BadRequestException("File field \"" + label + "\" needs at least one allowed file type");
                 }
-                fileTypes = List.copyOf(EnumSet.copyOf(f.fileTypes()));
+                // Forms saved before the PDF/DOCX-only rule may still list other types; they are dropped on save.
+                fileTypes = f.fileTypes().stream().filter(ALLOWED_FILE_TYPES::contains).distinct().sorted().toList();
+                if (fileTypes.isEmpty()) {
+                    throw new BadRequestException("File field \"" + label + "\" must allow " + describe(ALLOWED_FILE_TYPES));
+                }
             }
             case TEXT -> {
                 maxLength = f.maxLength() == null ? DEFAULT_TEXT_LENGTH : f.maxLength();
@@ -107,7 +112,7 @@ public class JobApplicationFormService {
 
     public void checkResume(MultipartFile resume) {
         if (resume == null || resume.isEmpty()) throw new BadRequestException("Resume is required");
-        checkFile("Resume", resume, RESUME_TYPES);
+        checkFile("Resume", resume, ALLOWED_FILE_TYPES);
     }
 
     /** Validates every answer up front so nothing is stored or uploaded for a rejected application. */
@@ -120,7 +125,7 @@ public class JobApplicationFormService {
                     if (field.required()) throw new BadRequestException("\"" + field.label() + "\" is required");
                     continue;
                 }
-                checkFile(field.label(), file, EnumSet.copyOf(field.fileTypes()));
+                checkFile(field.label(), file, allowedFor(field));
                 pending.add(new PendingAnswer(field, null, file));
             } else {
                 String[] raw = params == null ? null : params.get("answer." + field.id());
@@ -178,7 +183,7 @@ public class JobApplicationFormService {
                 .orElseThrow(() -> new BadRequestException("\"" + label + "\" must be one of: " + describe(allowed)));
 
         byte[] head = readHead(file);
-        if (!matchesSignature(type, head)) {
+        if (!matchesSignature(type, head) || (type == FileType.DOCX && !isWordDocument(file))) {
             throw new BadRequestException("\"" + label + "\" does not look like a valid " + type.name() + " file");
         }
     }
@@ -195,6 +200,24 @@ public class JobApplicationFormService {
                 yield true;
             }
         };
+    }
+
+    // Forms saved before the PDF/DOCX-only rule may list other types; those are no longer accepted.
+    private static Set<FileType> allowedFor(JobApplicationField field) {
+        Set<FileType> types = EnumSet.noneOf(FileType.class);
+        if (field.fileTypes() != null) types.addAll(field.fileTypes());
+        types.retainAll(ALLOWED_FILE_TYPES);
+        return types.isEmpty() ? ALLOWED_FILE_TYPES : types;
+    }
+
+    // Every Office/OpenDocument file is a ZIP; only a Word document has a word/document.xml part.
+    // ZIP entry names are stored uncompressed, so this needs no unzipping (and can't be zip-bombed).
+    private static boolean isWordDocument(MultipartFile file) {
+        try {
+            return new String(file.getBytes(), StandardCharsets.ISO_8859_1).contains("word/document.xml");
+        } catch (IOException e) {
+            throw new BadRequestException("Could not read uploaded file");
+        }
     }
 
     private static byte[] readHead(MultipartFile file) {
