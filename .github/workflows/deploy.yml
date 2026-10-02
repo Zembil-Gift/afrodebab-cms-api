@@ -1,13 +1,13 @@
 name: deploy
 
-# Builds the image and deploys it to the VPS on every push to serdesiyon.
+# Builds the image and deploys it to the VPS on every push to main.
 on:
   push:
-    branches: [serdesiyon]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-afrodebab-cms
+  group: deploy-afrodebab-main
   cancel-in-progress: false
 
 env:
@@ -36,13 +36,13 @@ jobs:
 
       # Checked before building: a var Spring has no default for kills the
       # container at boot, and we would only learn that from a failed healthcheck.
-      - name: Check /opt/afrodebab-cms/.env has every required var
+      - name: Check /opt/afrodebab/.env has every required var
         run: |
           required=$(printf '%s\n' IMAGE_TAG PORT DB_HOST DB_PORT DB_NAME DB_USERNAME DB_PASSWORD APP_JWT_SECRET | sort)
           present=$(ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$VPS_USER@$HOST" \
-            'sed -n "s/^\([A-Z0-9_]\+\)=..*/\1/p" /opt/afrodebab-cms/.env | sort -u')
+            'sed -n "s/^\([A-Z0-9_]\+\)=..*/\1/p" /opt/afrodebab/.env | sort -u')
           missing=$(comm -23 <(echo "$required") <(echo "$present"))
-          [ -z "$missing" ] || { echo "::error::/opt/afrodebab-cms/.env is missing: $(echo $missing)"; exit 1; }
+          [ -z "$missing" ] || { echo "::error::/opt/afrodebab/.env is missing: $(echo $missing)"; exit 1; }
 
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -54,7 +54,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ env.IMAGE }}:${{ github.sha }},${{ env.IMAGE }}:latest
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -62,32 +62,32 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # No --delete: /opt/afrodebab-cms also holds .env, which never leaves the box.
+          # No --delete: /opt/afrodebab also holds .env, which never leaves the box.
           rsync -az -e "ssh -i ~/.ssh/id_deploy -o BatchMode=yes" \
-            deploy/docker-compose.yml "$VPS_USER@$HOST:/opt/afrodebab-cms/"
+            deploy/docker-compose.yml "$VPS_USER@$HOST:/opt/afrodebab/"
           # --delete here only: migrations/ mirrors the repo exactly.
           rsync -az --delete -e "ssh -i ~/.ssh/id_deploy -o BatchMode=yes" \
-            src/main/resources/db/migration/ "$VPS_USER@$HOST:/opt/afrodebab-cms/migrations/"
+            src/main/resources/db/migration/ "$VPS_USER@$HOST:/opt/afrodebab/migrations/"
 
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$VPS_USER@$HOST" \
             "IMAGE_SHA='${{ github.sha }}' GHCR_USER='${{ github.actor }}' GHCR_TOKEN='$GHCR_TOKEN' bash -s" <<'EOF'
           set -euo pipefail
-          cd /opt/afrodebab-cms
+          cd /opt/afrodebab
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
           sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_SHA}|" .env
           docker network inspect zembil >/dev/null 2>&1 || docker network create zembil
 
-          docker compose pull afrodebab-api
+          docker compose pull afrodebab-main-api
 
           # Migrate before the new build starts: ddl-auto=validate would refuse
           # to boot against an unmigrated schema. A failed migration stops the
           # deploy with the previous container still serving.
-          docker compose up -d --wait afrodebab-db </dev/null
+          docker compose up -d --wait afrodebab-main-db </dev/null
           docker compose --profile migrate run --rm -T flyway </dev/null
           # ponytail: single container, a few seconds of 502 per deploy. Copy the
           # zembil blue/green swap if this tool ever needs zero downtime.
           if ! docker compose up -d --wait --wait-timeout 300 </dev/null; then
-            docker compose logs --tail=150 afrodebab-api
+            docker compose logs --tail=150 afrodebab-main-api
             exit 1
           fi
           docker logout ghcr.io >/dev/null

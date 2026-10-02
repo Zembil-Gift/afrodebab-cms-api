@@ -1,15 +1,15 @@
-# Lives at /opt/afrodebab-cms on the VPS. Images come from GHCR; nothing is built here.
+# Lives at /opt/afrodebab on the VPS. Images come from GHCR; nothing is built here.
 #
 # No public port. Caddy (reverse-proxy repo) reaches the API as
-# afrodebab-api:$PORT over the shared `zembil` network and serves it on
-# internal-tool.gogerami-api.online.
+# afrodebab-main-api:$PORT over the shared `zembil` network and serves it on
+# afrodebab-api.gogerami-api.online.
 #
 # Service names are prefixed because every name on `zembil` is a DNS name for
 # every stack on it -- a plain `postgres` here would collide with zembil's.
-name: afrodebab-cms
+name: afrodebab
 
 services:
-  afrodebab-db:
+  afrodebab-main-db:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
@@ -29,7 +29,7 @@ services:
       retries: 5
     # Private network only: the database is never on `zembil`, so no other
     # stack (or the proxy) can reach it. Tunnel over SSH with
-    # `docker compose exec afrodebab-db psql` if you need a shell.
+    # `docker compose exec afrodebab-main-db psql` if you need a shell.
     networks: [internal]
 
   # One-shot, run by the deploy before the API starts. Mirrors the
@@ -49,17 +49,17 @@ services:
     volumes:
       - ./migrations:/flyway/sql:ro
     depends_on:
-      afrodebab-db:
+      afrodebab-main-db:
         condition: service_healthy
     networks: [internal]
 
-  afrodebab-api:
+  afrodebab-main-api:
     image: ghcr.io/zembil-gift/afrodebab-cms-api:${IMAGE_TAG}
     restart: unless-stopped
-    # DB_HOST must be afrodebab-db and SSL_MODE disable; PORT and DB_PORT are free.
+    # DB_HOST must be afrodebab-main-db and SSL_MODE disable; PORT and DB_PORT are free.
     env_file: .env
     depends_on:
-      afrodebab-db:
+      afrodebab-main-db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:${PORT}/actuator/health"]
