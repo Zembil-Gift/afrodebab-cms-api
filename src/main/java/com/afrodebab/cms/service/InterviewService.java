@@ -64,6 +64,7 @@ public class InterviewService {
     private final GoogleApiClient google;
     private final EmailNotificationService emailNotificationService;
     private final NotificationService notificationService;
+    private final InterviewFeedbackService feedbackService;
 
     public InterviewService(InterviewRepository interviewRepo,
                             JobApplicationService jobApplicationService,
@@ -73,7 +74,8 @@ public class InterviewService {
                             ManagerGoogleConnectionService googleConnection,
                             GoogleApiClient google,
                             EmailNotificationService emailNotificationService,
-                            NotificationService notificationService) {
+                            NotificationService notificationService,
+                            InterviewFeedbackService feedbackService) {
         this.interviewRepo = interviewRepo;
         this.jobApplicationService = jobApplicationService;
         this.managerRepo = managerRepo;
@@ -83,6 +85,7 @@ public class InterviewService {
         this.google = google;
         this.emailNotificationService = emailNotificationService;
         this.notificationService = notificationService;
+        this.feedbackService = feedbackService;
     }
 
     // ---------------------------------------------------------------- queries
@@ -129,7 +132,7 @@ public class InterviewService {
         interview = interviewRepo.save(interview);
 
         boolean onGoogle = createGoogleEvent(interview, organizer);
-        if (!onGoogle) emailInvitations(interview, organizer, interview.getParticipants());
+        emailInvitations(interview, organizer, onGoogle);
         notifyInternal(interview, interview.getParticipants(), Notification.Type.INTERVIEW_INVITATION);
         return toResponse(interviewRepo.save(interview));
     }
@@ -148,10 +151,8 @@ public class InterviewService {
 
         // Interviews first sent by email stay on email, so nobody ends up with two calendar entries.
         boolean onGoogle = interview.getGoogleEventId() != null && updateGoogleEvent(interview, organizer);
-        if (!onGoogle) {
-            emailInvitations(interview, organizer, interview.getParticipants());
-            emailCancellations(interview, organizer, removed, false);
-        }
+        emailInvitations(interview, organizer, onGoogle);
+        if (!onGoogle) emailCancellations(interview, organizer, removed, false);
         notifyInternal(interview, interview.getParticipants(), Notification.Type.INTERVIEW_INVITATION);
         notifyInternal(interview, removed, Notification.Type.INTERVIEW_CANCELLED);
         return toResponse(interviewRepo.save(interview));
@@ -164,6 +165,7 @@ public class InterviewService {
         interview.setStatus(Interview.Status.CANCELLED);
         interview.setSequence(interview.getSequence() + 1);
 
+        feedbackService.revokeLinks(interview);
         if (!deleteGoogleEvent(interview, organizer)) {
             emailCancellations(interview, organizer, interview.getParticipants(), true);
         }
@@ -181,6 +183,7 @@ public class InterviewService {
             throw new BadRequestException("Cancelled interviews can't be marked " + status);
         }
         interview.setStatus(status);
+        if (status == Interview.Status.NO_SHOW) feedbackService.revokeLinks(interview);
         return toResponse(interviewRepo.save(interview));
     }
 
@@ -298,19 +301,29 @@ public class InterviewService {
 
     // ---------------------------------------------------------------- email fallback
 
-    private void emailInvitations(Interview interview, Manager organizer, List<InterviewParticipant> participants) {
+    /**
+     * Interviewers always get their feedback link from us. On Google Calendar, Google sends the invitations,
+     * so we only email the interviewers who need a link, without an .ics. The candidate is on that event,
+     * so the link can't go in its description.
+     */
+    private void emailInvitations(Interview interview, Manager organizer, boolean onGoogle) {
         JobApplication app = interview.getApplication();
         String jobTitle = app.getJob().getTitle();
         String when = when(interview);
         String format = interview.getMode() == Interview.Mode.ONLINE ? "Online" : "In person";
+        Map<String, String> feedbackUrls = feedbackService.issueLinks(interview);
 
-        emailNotificationService.queueInterviewInvitationEmail(app.getEmail(), app.getFullName(), jobTitle, when, format,
-                interview.getLocation(), interview.getMeetingUrl(),
-                invite(interview, organizer, ICalendar.Method.REQUEST, app.getFullName(), app.getEmail()));
-        for (InterviewParticipant p : participants) {
+        if (!onGoogle) {
+            emailNotificationService.queueInterviewInvitationEmail(app.getEmail(), app.getFullName(), jobTitle, when, format,
+                    interview.getLocation(), interview.getMeetingUrl(),
+                    invite(interview, organizer, ICalendar.Method.REQUEST, app.getFullName(), app.getEmail()));
+        }
+        for (InterviewParticipant p : interview.getParticipants()) {
+            String feedbackUrl = feedbackUrls.get(p.getEmail());
+            if (onGoogle && feedbackUrl == null) continue;
             emailNotificationService.queueInterviewPanelInvitationEmail(p.getEmail(), p.getName(), app.getFullName(), jobTitle,
-                    when, format, interview.getLocation(), interview.getMeetingUrl(), interview.getNotes(),
-                    invite(interview, organizer, ICalendar.Method.REQUEST, p.getName(), p.getEmail()));
+                    when, format, interview.getLocation(), interview.getMeetingUrl(), interview.getNotes(), feedbackUrl,
+                    onGoogle ? null : invite(interview, organizer, ICalendar.Method.REQUEST, p.getName(), p.getEmail()));
         }
     }
 
@@ -446,6 +459,8 @@ public class InterviewService {
                         .map(p -> new InterviewResponse.Participant(p.getKind().name(), p.getManagerId(), p.getEmployeeId(),
                                 p.getName(), p.getEmail()))
                         .toList(),
+                // ponytail: one query per interview; batch-load if job interview lists get long.
+                feedbackService.feedbackFor(i.getId()),
                 i.getCreatedAt()
         );
     }

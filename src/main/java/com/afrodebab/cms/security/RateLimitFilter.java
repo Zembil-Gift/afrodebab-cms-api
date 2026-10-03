@@ -36,6 +36,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             new Rule("auth", Pattern.compile("^/(admin|manager|vice-manager|employee)/auth/.+"), 10, Duration.ofMinutes(1)),
             new Rule("signup", Pattern.compile("^/signup(/otp)?$"), 5, Duration.ofMinutes(10)),
             new Rule("apply", Pattern.compile("^/public/[^/]+/jobs/[^/]+/apply(/form)?$"), 20, Duration.ofHours(1)),
+            // Links are 256-bit tokens, so this only caps spam; generous because the Next proxy shares one IP.
+            new Rule("interview-feedback", Pattern.compile("^/interview-feedback/[^/]+$"), 60, Duration.ofMinutes(10)),
             // A branch kiosk clocks in everyone from one IP, so this limit only stops attendance-key guessing.
             new Rule("attendance", Pattern.compile("^/employee/me/(clock-in|clock-out|lunch-break-in|lunch-break-out)$"),
                     300, Duration.ofMinutes(1)));

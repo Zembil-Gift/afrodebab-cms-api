@@ -238,12 +238,18 @@ public class EmailTemplateService {
         } else {
             List<Row> present = def.rows().stream().filter(r -> hasText(values.get(r.key()))).toList();
             rows = IntStream.range(0, present.size())
-                    .mapToObj(i -> detailRow(present.get(i).label(), escapeHtml(values.get(present.get(i).key())), i == 0))
+                    .mapToObj(i -> detailRow(present.get(i).label(), valueHtml(values.get(present.get(i).key())), i == 0))
                     .collect(Collectors.joining());
         }
         if (rows.isEmpty()) return "";
         return "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"margin:8px 0 20px;background:" + PANEL
                 + ";border:1px solid " + LINE + ";border-radius:12px;border-collapse:separate;\">" + rows + "</table>";
+    }
+
+    // Links (meeting, feedback form) are clickable; everything else is plain text.
+    private static String valueHtml(String value) {
+        if (!value.matches("(?i)^https?://\\S+$")) return escapeHtml(value);
+        return "<a href=\"" + escapeHtml(value) + "\" style=\"color:" + BRAND + ";\">" + escapeHtml(value) + "</a>";
     }
 
     // Label and value share one row so each detail reads as "Email - someone@example.com".
@@ -551,14 +557,17 @@ public class EmailTemplateService {
                 "Interview: {{candidateName}} for {{jobTitle}}",
                 "You're on an interview panel",
                 "You have been added as an interviewer for {{candidateName}}, who applied for {{jobTitle}}.\n\n"
-                        + "The attached invitation adds the interview to your calendar.",
+                        + "Your calendar invitation is attached or comes separately from Google Calendar. "
+                        + "Open the feedback form link below to see the candidate's application, and use it after the interview "
+                        + "to submit your feedback. The link is personal to you and stops working once you submit.",
                 false, List.of(new Row("Candidate", "candidateName"), new Row("Role", "jobTitle"), new Row("When", "when"),
                         new Row("Format", "format"), new Row("Location", "location"), new Row("Meeting link", "meetingUrl"),
-                        new Row("Notes", "notes")),
+                        new Row("Notes", "notes"), new Row("Feedback form", "feedbackUrl")),
                 sample("name", "Abel Tesfaye", "email", "interviewer@example.com", "candidateName", "Rekik Haile",
                         "jobTitle", "Frontend Developer", "when", "Wed, 1 Oct 2026, 10:00 - 11:00 (Africa/Addis_Ababa)",
                         "format", "Online", "location", "", "meetingUrl", "https://meet.google.com/abc-defg-hij",
-                        "notes", "Focus on React and system design.")));
+                        "notes", "Focus on React and system design.",
+                        "feedbackUrl", "https://app.example.com/interview-feedback/abc123")));
 
         // Goes to the candidate and every interviewer.
         DEFINITIONS.put(NotificationType.INTERVIEW_CANCELLED, new Definition("Candidate", true,

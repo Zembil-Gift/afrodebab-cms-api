@@ -18,7 +18,12 @@ public record InterviewResponse(
         String status,
         boolean googleCalendarEvent,
         List<Participant> participants,
+        List<Feedback> feedback,
         Instant createdAt
 ) {
     public record Participant(String kind, Long managerId, Long employeeId, String name, String email) {}
+
+    /** One interviewer's feedback; recommendation, comments and submittedAt are null until they submit. */
+    public record Feedback(String interviewerName, String interviewerEmail, String recommendation, String comments,
+                           Instant submittedAt) {}
 }

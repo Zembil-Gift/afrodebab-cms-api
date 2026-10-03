@@ -152,10 +152,12 @@ public class EmailNotificationService {
     @Transactional
     public void queueInterviewPanelInvitationEmail(String recipientEmail, String recipientName, String candidateName,
                                                    String jobTitle, String when, String format, String location,
-                                                   String meetingUrl, String notes, String calendarInvite) {
+                                                   String meetingUrl, String notes, String feedbackUrl,
+                                                   String calendarInvite) {
         queue(NotificationType.INTERVIEW_PANEL_INVITATION, recipientEmail,
                 vars("name", recipientName, "candidateName", candidateName, "jobTitle", jobTitle, "when", when,
                         "format", format, "location", location, "meetingUrl", meetingUrl, "notes", notes,
+                        "feedbackUrl", feedbackUrl,
                         EmailTemplateService.CALENDAR_INVITE, calendarInvite));
     }
 
