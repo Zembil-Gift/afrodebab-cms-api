@@ -60,6 +60,10 @@ public class Interview extends com.afrodebab.cms.tenant.TenantEntity {
     @Column(name = "google_event_id")
     private String googleEventId;
 
+    /** Meeting in the scheduling manager's Zoom account; null unless Zoom made the link. */
+    @Column(name = "zoom_meeting_id")
+    private String zoomMeetingId;
+
     /** Bumped on every change so calendar apps replace the earlier invitation. */
     @Column(nullable = false)
     private int sequence;

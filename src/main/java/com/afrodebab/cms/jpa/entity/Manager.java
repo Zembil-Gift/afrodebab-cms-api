@@ -103,6 +103,13 @@ public class Manager extends TenantEntity {
     @Column(name = "google_scopes", columnDefinition = "TEXT")
     private String googleScopes;
 
+    /** Zoom OAuth refresh token, encrypted at rest. Zoom rotates it on every refresh. */
+    @Column(name = "zoom_refresh_token", columnDefinition = "TEXT")
+    private String zoomRefreshToken;
+
+    @Column(name = "zoom_email")
+    private String zoomEmail;
+
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 

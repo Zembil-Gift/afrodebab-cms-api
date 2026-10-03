@@ -27,23 +27,26 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * Interviews for job applications. When the scheduling manager has connected Google Calendar,
- * the interview becomes an event in their calendar (Google sends the invitations and, for
- * online interviews, creates a Meet link). Otherwise we email each person a branded
+ * the interview becomes an event in their calendar (Google sends the invitations). Online
+ * interviews get a Google Meet or Zoom link from the manager's connected account. Otherwise we email each person a branded
  * invitation with an .ics attachment. Internal interviewers also get an in-app notification.
  * Internal notes never reach the candidate: they are left out of the Google event and the
  * candidate's email.
@@ -52,6 +55,7 @@ import java.util.stream.Collectors;
 public class InterviewService {
     private static final Logger log = LoggerFactory.getLogger(InterviewService.class);
     private static final String CALENDAR_EVENTS = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+    private static final String MEET_SPACES = "https://meet.googleapis.com/v2/spaces";
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("EEE, d MMM yyyy, HH:mm", Locale.ENGLISH);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH);
 
@@ -65,6 +69,8 @@ public class InterviewService {
     private final EmailNotificationService emailNotificationService;
     private final NotificationService notificationService;
     private final InterviewFeedbackService feedbackService;
+    private final ManagerZoomConnectionService zoomConnection;
+    private final ZoomApiClient zoom;
 
     public InterviewService(InterviewRepository interviewRepo,
                             JobApplicationService jobApplicationService,
@@ -75,7 +81,9 @@ public class InterviewService {
                             GoogleApiClient google,
                             EmailNotificationService emailNotificationService,
                             NotificationService notificationService,
-                            InterviewFeedbackService feedbackService) {
+                            InterviewFeedbackService feedbackService,
+                            ManagerZoomConnectionService zoomConnection,
+                            ZoomApiClient zoom) {
         this.interviewRepo = interviewRepo;
         this.jobApplicationService = jobApplicationService;
         this.managerRepo = managerRepo;
@@ -86,6 +94,8 @@ public class InterviewService {
         this.emailNotificationService = emailNotificationService;
         this.notificationService = notificationService;
         this.feedbackService = feedbackService;
+        this.zoomConnection = zoomConnection;
+        this.zoom = zoom;
     }
 
     // ---------------------------------------------------------------- queries
@@ -131,6 +141,7 @@ public class InterviewService {
         apply(interview, req);
         interview = interviewRepo.save(interview);
 
+        createMeetingLink(interview, organizer, req.meetingProvider());
         boolean onGoogle = createGoogleEvent(interview, organizer);
         emailInvitations(interview, organizer, onGoogle);
         notifyInternal(interview, interview.getParticipants(), Notification.Type.INTERVIEW_INVITATION);
@@ -142,13 +153,16 @@ public class InterviewService {
         Interview interview = getScheduledOrThrow(interviewId);
         Manager organizer = organizerOf(interview);
         List<InterviewParticipant> previous = new ArrayList<>(interview.getParticipants());
+        String previousUrl = interview.getMeetingUrl();
 
         apply(interview, req);
+        syncZoomMeeting(interview, organizer, previousUrl);
         interview.setSequence(interview.getSequence() + 1);
         // People dropped from the panel get a cancellation instead of the update.
         Set<String> kept = emails(interview.getParticipants());
         List<InterviewParticipant> removed = previous.stream().filter(p -> !kept.contains(p.getEmail())).toList();
 
+        createMeetingLink(interview, organizer, req.meetingProvider());
         // Interviews first sent by email stay on email, so nobody ends up with two calendar entries.
         boolean onGoogle = interview.getGoogleEventId() != null && updateGoogleEvent(interview, organizer);
         emailInvitations(interview, organizer, onGoogle);
@@ -166,6 +180,7 @@ public class InterviewService {
         interview.setSequence(interview.getSequence() + 1);
 
         feedbackService.revokeLinks(interview);
+        deleteZoomMeeting(interview, organizer);
         if (!deleteGoogleEvent(interview, organizer)) {
             emailCancellations(interview, organizer, interview.getParticipants(), true);
         }
@@ -226,6 +241,95 @@ public class InterviewService {
         }
         byEmail.remove(normalize(candidateEmail));
         return new ArrayList<>(byEmail.values());
+    }
+
+    // ---------------------------------------------------------------- meeting links
+
+    /** Online interviews without a pasted link get one from the chosen provider (Google Meet by default). */
+    private void createMeetingLink(Interview interview, Manager organizer, InterviewRequest.MeetingProvider provider) {
+        if (interview.getMode() != Interview.Mode.ONLINE || interview.getMeetingUrl() != null) return;
+        if (provider == InterviewRequest.MeetingProvider.ZOOM) createZoomMeeting(interview, organizer);
+        else createOpenMeetLink(interview, organizer);
+    }
+
+    /**
+     * Online interviews without a link get a Meet space with OPEN access, so everyone invited joins
+     * straight from the link without knocking. Calendar's own Meet links make outside guests ask to join.
+     * Without the Meet scope (or on failure) the Calendar event creates its regular Meet link instead.
+     */
+    private void createOpenMeetLink(Interview interview, Manager organizer) {
+        try {
+            googleConnection.accessToken(organizer, GoogleApiClient.SCOPE_MEET)
+                    .map(token -> google.request("POST", MEET_SPACES, token, Map.of("config", Map.of("accessType", "OPEN"))))
+                    .map(space -> space.path("meetingUri").asText(null))
+                    .ifPresent(interview::setMeetingUrl);
+        } catch (RuntimeException e) {
+            log.warn("Google Meet space creation failed for manager {}", organizer.getId(), e);
+        }
+    }
+
+    // ---------------------------------------------------------------- Zoom
+
+    /** Zoom was explicitly chosen, so failures (not connected, Zoom error) reach the manager instead of falling back. */
+    private void createZoomMeeting(Interview interview, Manager organizer) {
+        JsonNode meeting = zoom.request("POST", ZoomApiClient.API + "/users/me/meetings",
+                zoomConnection.accessToken(organizer.getId()), zoomMeetingBody(interview));
+        interview.setZoomMeetingId(meeting.path("id").asText(null));
+        interview.setMeetingUrl(meeting.path("join_url").asText(null));
+    }
+
+    /** On reschedule: move the Zoom meeting along, or drop it once the interview no longer uses its link. */
+    private void syncZoomMeeting(Interview interview, Manager organizer, String previousUrl) {
+        if (interview.getZoomMeetingId() == null) return;
+        if (interview.getMode() != Interview.Mode.ONLINE || !Objects.equals(interview.getMeetingUrl(), previousUrl)) {
+            deleteZoomMeeting(interview, organizer);
+            return;
+        }
+        try {
+            zoom.request("PATCH", ZoomApiClient.API + "/meetings/" + interview.getZoomMeetingId(),
+                    zoomConnection.accessToken(organizer.getId()), zoomMeetingBody(interview));
+        } catch (RuntimeException e) {
+            // The link still works (join any time), only Zoom's own schedule is off.
+            log.warn("Zoom meeting update failed for interview {}", interview.getId(), e);
+        }
+    }
+
+    private void deleteZoomMeeting(Interview interview, Manager organizer) {
+        if (interview.getZoomMeetingId() == null) return;
+        try {
+            zoom.request("DELETE", ZoomApiClient.API + "/meetings/" + interview.getZoomMeetingId(),
+                    zoomConnection.accessToken(organizer.getId()), null);
+        } catch (RuntimeException e) {
+            log.warn("Zoom meeting deletion failed for interview {}", interview.getId(), e);
+        }
+        interview.setZoomMeetingId(null);
+    }
+
+    /** No waiting room, join before host, no sign-in: everyone with the link walks straight in. */
+    private Map<String, Object> zoomMeetingBody(Interview interview) {
+        JobApplication app = interview.getApplication();
+        List<Map<String, String>> invitees = new ArrayList<>();
+        invitees.add(Map.of("email", app.getEmail()));
+        interview.getParticipants().forEach(p -> invitees.add(Map.of("email", p.getEmail())));
+
+        Map<String, Object> settings = new LinkedHashMap<>();
+        settings.put("join_before_host", true);
+        settings.put("jbh_time", 0);
+        settings.put("waiting_room", false);
+        settings.put("approval_type", 2);
+        settings.put("meeting_authentication", false);
+        settings.put("meeting_invitees", invitees);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        String topic = "Interview: " + app.getFullName() + " - " + app.getJob().getTitle();
+        body.put("topic", topic.length() > 200 ? topic.substring(0, 200) : topic);
+        body.put("type", 2);
+        body.put("start_time", interview.getStartAt().truncatedTo(ChronoUnit.SECONDS).toString());
+        body.put("timezone", "UTC");
+        body.put("duration", Duration.between(interview.getStartAt(), interview.getEndAt()).toMinutes());
+        body.put("agenda", "Interview for " + app.getJob().getTitle() + " at " + currentOrg().getName() + ".");
+        body.put("settings", settings);
+        return body;
     }
 
     // ---------------------------------------------------------------- Google Calendar

@@ -90,7 +90,8 @@ public class ManagerGoogleConnectionService {
                 google.isConfigured(),
                 manager.getGoogleRefreshToken() != null,
                 manager.getGoogleEmail(),
-                hasScope(manager, GoogleApiClient.SCOPE_CALENDAR),
+                // Calendar counts as enabled only with Meet too, so older connections are asked to re-consent.
+                hasScope(manager, GoogleApiClient.SCOPE_CALENDAR) && hasScope(manager, GoogleApiClient.SCOPE_MEET),
                 hasScope(manager, GoogleApiClient.SCOPE_SHEETS));
     }
 }
