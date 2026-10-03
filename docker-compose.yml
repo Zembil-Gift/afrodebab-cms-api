@@ -1,0 +1,42 @@
+# Local try-out stack: Postgres pre-loaded with demo data + the API built from this repo.
+# See LOCAL_SETUP.md. (Production uses deploy/docker-compose.yml instead.)
+name: afrodebab-local
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: cms3
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs only when the volume is empty (first start). It already includes the Flyway history.
+      - ./db-seed/cms3.sql:/docker-entrypoint-initdb.d/cms3.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cms3"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: cms3
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      SSL_MODE: disable
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
